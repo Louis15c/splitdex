@@ -1,0 +1,131 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Splitdex — Style S · Rétro OS</title>
+<link href="https://fonts.googleapis.com/css2?family=Press+Start+2P&family=VT323&display=swap" rel="stylesheet">
+<style>
+  * { margin:0; padding:0; box-sizing:border-box; }
+  :root {
+    --desk:#155e63; --desk2:#0f4a4e;
+    --win:#1b2233; --win-lite:#2a3350; --win-dark:#0c1120;
+    --edge-hi:#465a86; --edge-lo:#0a0e18;
+    --ink:#e9eefb; --dim:#93a0c4;
+    --title:#3a6df0; --title2:#2247b8;
+    --amber:#ffcb3d; --red:#ff5a5a; --green:#57e08a; --cyan:#57d9f0;
+    --pix: 3px;
+  }
+  html { image-rendering: pixelated; }
+  body {
+    font-family:'VT323', monospace; color:var(--ink); min-height:100vh; font-size:19px;
+    background:
+      repeating-conic-gradient(rgba(255,255,255,.025) 0% 25%, transparent 0% 50%) 0 0 / 6px 6px,
+      linear-gradient(160deg, var(--desk), var(--desk2));
+    padding:22px 16px 60px;
+  }
+  .pix-win {
+    background:var(--win);
+    border:var(--pix) solid var(--win-dark);
+    box-shadow:
+      inset var(--pix) var(--pix) 0 var(--edge-hi),
+      inset calc(-1*var(--pix)) calc(-1*var(--pix)) 0 var(--edge-lo),
+      6px 6px 0 rgba(0,0,0,.4);
+  }
+  .titlebar {
+    background:linear-gradient(var(--title), var(--title2));
+    border-bottom:var(--pix) solid var(--win-dark);
+    padding:7px 8px; display:flex; align-items:center; gap:8px;
+    font-family:'Press Start 2P'; font-size:10px; color:#fff; text-shadow:1px 1px 0 rgba(0,0,0,.5);
+  }
+  .titlebar .btns { margin-left:auto; display:flex; gap:5px; }
+  .tb-btn { width:16px; height:16px; border:2px solid var(--win-dark); background:#c9d2e8;
+    box-shadow:inset 1px 1px 0 #fff, inset -1px -1px 0 #7f8bad; font-size:9px; text-align:center; line-height:12px; color:#1b2233; }
+  .shell { max-width:900px; margin:0 auto; }
+  .menubar { display:flex; gap:0; border-bottom:var(--pix) solid var(--win-dark); background:var(--win-lite); }
+  .menubar a { font-family:'Press Start 2P'; font-size:8.5px; color:var(--ink); text-decoration:none; padding:9px 14px; }
+  .menubar a.on { background:var(--title); color:#fff; }
+  .menubar a:hover:not(.on) { background:#354168; }
+  .body-pad { padding:24px; }
+  .hero { display:grid; grid-template-columns:1fr 1fr; gap:22px; align-items:center; }
+  .hero h1 { font-family:'Press Start 2P'; font-size:18px; line-height:1.7; }
+  .hero h1 .c { color:var(--amber); }
+  .hero p { font-size:20px; color:var(--dim); margin-top:14px; line-height:1.35; }
+  .btnrow { display:flex; gap:12px; margin-top:20px; }
+  .pix-btn {
+    font-family:'Press Start 2P'; font-size:10px; color:#1a1200; background:var(--amber);
+    border:var(--pix) solid var(--win-dark); padding:12px 16px; cursor:pointer;
+    box-shadow:inset 2px 2px 0 #ffe28a, inset -2px -2px 0 #b3860f;
+  }
+  .pix-btn:active { box-shadow:inset -2px -2px 0 #ffe28a, inset 2px 2px 0 #b3860f; }
+  .pix-btn.ghost { background:var(--win-lite); color:var(--ink); box-shadow:inset 2px 2px 0 #465a86, inset -2px -2px 0 var(--edge-lo); }
+  /* sunken drop well */
+  .well {
+    background:var(--win-dark); border:var(--pix) solid var(--win-dark);
+    box-shadow:inset 2px 2px 0 var(--edge-lo), inset -2px -2px 0 #2a3350;
+    padding:26px 18px; text-align:center;
+  }
+  .well .scr { width:44px; height:44px; margin:0 auto 12px; }
+  .well .scr svg { width:100%; height:100%; shape-rendering:crispEdges; }
+  .well h3 { font-family:'Press Start 2P'; font-size:11px; color:var(--cyan); line-height:1.6; }
+  .well p { font-size:18px; color:var(--dim); margin-top:8px; }
+  .well .pix-btn { margin-top:16px; }
+  .stat-strip { display:flex; border-top:var(--pix) solid var(--win-dark); margin-top:20px; }
+  .stat { flex:1; text-align:center; padding:12px 6px; border-right:var(--pix) solid var(--win-dark); }
+  .stat:last-child { border-right:0; }
+  .stat .n { font-family:'Press Start 2P'; font-size:12px; color:var(--green); }
+  .stat .l { font-size:16px; color:var(--dim); margin-top:6px; letter-spacing:.04em; }
+  .section-title { font-family:'Press Start 2P'; font-size:11px; color:var(--amber); margin:22px 0 12px; }
+  .filerow {
+    display:flex; align-items:center; gap:12px; padding:10px 12px; background:var(--win-lite);
+    border:var(--pix) solid var(--win-dark); margin-bottom:9px; cursor:pointer;
+    box-shadow:inset 1px 1px 0 #465a86, inset -1px -1px 0 var(--edge-lo);
+  }
+  .filerow:hover { background:#354168; }
+  .filerow .ic { width:26px; height:36px; background:linear-gradient(150deg,#3a6df0,#2247b8); border:2px solid var(--win-dark); flex-shrink:0; }
+  .filerow .t { flex:1; font-size:19px; }
+  .filerow .d { color:var(--dim); font-size:17px; }
+  .tag { font-family:'Press Start 2P'; font-size:8px; color:#1a1200; background:var(--green); padding:5px 8px; border:2px solid var(--win-dark); }
+  @media (max-width:720px){ .hero{ grid-template-columns:1fr; } }
+</style>
+</head>
+<body>
+  <div class="shell pix-win">
+    <div class="titlebar">
+      <span>▚ SPLITDEX.EXE</span>
+      <span class="btns"><span class="tb-btn">_</span><span class="tb-btn">□</span><span class="tb-btn">×</span></span>
+    </div>
+    <div class="menubar">
+      <a class="on" href="#">Accueil</a><a href="#">Historique</a><a href="#">Vinted</a><a href="#">Aide</a>
+    </div>
+    <div class="body-pad">
+      <div class="hero">
+        <div>
+          <h1>Scannez.<br><span class="c">Vendez.</span></h1>
+          <p>Splitdex identifie vos cartes Pokémon, détecte leur langue, trouve leur cote et écrit vos annonces Vinted.</p>
+          <div class="btnrow">
+            <span class="pix-btn">▶ IMPORTER</span>
+            <span class="pix-btn ghost">HISTORIQUE</span>
+          </div>
+        </div>
+        <div class="well">
+          <div class="scr"><svg viewBox="0 0 11 11">
+            <g fill="#57d9f0"><rect x="5" y="1" width="1" height="6"/><rect x="4" y="2" width="1" height="1"/><rect x="6" y="2" width="1" height="1"/><rect x="3" y="3" width="1" height="1"/><rect x="7" y="3" width="1" height="1"/><rect x="2" y="8" width="7" height="1"/><rect x="2" y="9" width="1" height="1"/><rect x="8" y="9" width="1" height="1"/></g>
+          </svg></div>
+          <h3>DÉPOSEZ<br>VOS PHOTOS</h3>
+          <p>jusqu'à 20 · JPG PNG WEBP</p>
+          <span class="pix-btn">PARCOURIR</span>
+        </div>
+      </div>
+      <div class="stat-strip pix-win" style="box-shadow:none;border:var(--pix) solid var(--win-dark)">
+        <div class="stat"><div class="n">20427</div><div class="l">CARTES</div></div>
+        <div class="stat"><div class="n">6</div><div class="l">LANGUES</div></div>
+        <div class="stat"><div class="n">2s</div><div class="l">/CARTE</div></div>
+      </div>
+      <div class="section-title">▚ SESSIONS RÉCENTES</div>
+      <div class="filerow"><div class="ic"></div><span class="t">19 juillet</span><span class="d">25 cartes · Zénith Suprême</span><span class="tag">25 OK</span></div>
+      <div class="filerow"><div class="ic"></div><span class="t">18 juillet</span><span class="d">15 cartes · FR + EN</span><span class="tag">15 OK</span></div>
+    </div>
+  </div>
+</body>
+</html>

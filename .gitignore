@@ -1,0 +1,36 @@
+# Python
+backend/.venv/
+__pycache__/
+*.pyc
+*.pyo
+
+# Secrets & configuration locale
+.env
+.claude/settings.local.json
+
+# Données volumineuses régénérables (voir README « Données »)
+# Cache de référence (20 000+ cartes : DB SQLite, vignettes, embeddings ~3 Go)
+data/db/*
+!data/db/.gitkeep
+# Photos uploadées + crops
+data/uploads/*
+!data/uploads/.gitkeep
+# Ancien fichier DB à la racine de data/ (obsolète)
+data/splitdex.db
+
+# Modèle : artefacts d'entraînement lourds ignorés, MAIS le modèle entraîné
+# card_detector.pt (6 Mo, essentiel) est versionné pour que l'app détecte les
+# cartes dès le clone.
+data/models/*
+!data/models/.gitkeep
+!data/models/card_detector.pt
+
+# macOS / éditeurs
+.DS_Store
+*.swp
+*~
+
+# Modèle de base ultralytics (auto-téléchargé au besoin)
+backend/yolov8n.pt
+*.pt
+!data/models/card_detector.pt

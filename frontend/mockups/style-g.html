@@ -1,0 +1,136 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Splitdex — Style G · Dos de carte</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Sora:wght@400;600;700;800&family=Source+Sans+3:wght@400;500;600&display=swap" rel="stylesheet">
+<style>
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+  :root {
+    --navy: #10254c;
+    --navy-deep: #0a1832;
+    --swirl: #1b3a6e;
+    --line: rgba(122,160,220,.22);
+    --ink: #eef3fb;
+    --dim: #93a9cc;
+    --gold: #f4b41f;
+    --gold-deep: #cd9012;
+  }
+  body {
+    font-family: 'Source Sans 3', sans-serif; color: var(--ink); min-height: 100vh;
+    background:
+      radial-gradient(ellipse 55% 40% at 22% 18%, var(--swirl), transparent 65%),
+      radial-gradient(ellipse 60% 45% at 82% 70%, var(--swirl), transparent 65%),
+      radial-gradient(ellipse 45% 35% at 60% 25%, rgba(37,72,130,.8), transparent 60%),
+      linear-gradient(160deg, var(--navy), var(--navy-deep));
+  }
+  .frame { min-height: 100vh; padding: 10px; }
+  .frame-inner { border: 3px solid var(--gold); border-radius: 14px; min-height: calc(100vh - 20px); box-shadow: inset 0 0 0 2px rgba(244,180,31,.25), inset 0 0 60px rgba(0,0,0,.3); }
+  .wrap { max-width: 820px; margin: 0 auto; padding: 0 28px 56px; }
+  header { display: flex; align-items: center; justify-content: space-between; padding: 24px 0; }
+  .logo { font-family: 'Sora'; font-weight: 800; font-size: 21px; letter-spacing: -.01em; }
+  .logo .g { color: var(--gold); }
+  nav { display: flex; gap: 4px; }
+  nav a {
+    color: var(--dim); text-decoration: none; font-size: 14px; font-weight: 600;
+    padding: 8px 16px; border-radius: 8px; transition: all .15s;
+  }
+  nav a.on { color: var(--navy-deep); background: var(--gold); }
+  nav a:hover:not(.on) { color: var(--ink); background: rgba(255,255,255,.06); }
+  .hero { padding: 46px 0 6px; text-align: center; }
+  .hero h1 {
+    font-family: 'Sora'; font-size: clamp(34px, 5.4vw, 50px); font-weight: 800;
+    letter-spacing: -.025em; line-height: 1.08;
+  }
+  .hero h1 .g { color: var(--gold); }
+  .hero p { margin: 16px auto 0; max-width: 50ch; color: var(--dim); font-size: 16px; line-height: 1.65; }
+  .drop { margin-top: 40px; cursor: pointer; }
+  .drop-inner {
+    position: relative; border-radius: 16px; text-align: center; padding: 50px 32px 46px;
+    background: rgba(10,24,50,.55); border: 2px solid var(--line);
+    backdrop-filter: blur(2px); transition: all .2s;
+  }
+  .drop:hover .drop-inner { border-color: var(--gold); background: rgba(10,24,50,.75); }
+  .flip { width: 92px; height: 128px; margin: 0 auto 24px; perspective: 500px; }
+  .flip .inner { width: 100%; height: 100%; position: relative; transform-style: preserve-3d; transition: transform .6s cubic-bezier(.4,.1,.2,1); }
+  .drop:hover .flip .inner { transform: rotateY(180deg); }
+  .face {
+    position: absolute; inset: 0; border-radius: 8px; backface-visibility: hidden;
+    border: 3px solid var(--gold); box-shadow: 0 16px 34px rgba(0,0,0,.5);
+  }
+  .face.back {
+    background:
+      radial-gradient(circle at 30% 30%, #2a5090, transparent 55%),
+      radial-gradient(circle at 72% 68%, #2a5090, transparent 55%),
+      linear-gradient(150deg, #16305e, #0c1c3c);
+  }
+  .face.front {
+    transform: rotateY(180deg);
+    background: linear-gradient(160deg, #f7f3e8, #e9e2cf);
+    display: flex; align-items: center; justify-content: center;
+  }
+  .face.front svg { width: 36px; height: 36px; stroke: var(--gold-deep); }
+  .drop h2 { font-family: 'Sora'; font-size: 21px; font-weight: 700; }
+  .drop p { color: var(--dim); font-size: 14.5px; margin-top: 8px; }
+  .drop .btn {
+    display: inline-block; margin-top: 22px; background: var(--gold); color: var(--navy-deep);
+    font-family: 'Sora'; font-weight: 700; font-size: 15px; padding: 13px 32px; border-radius: 10px;
+    box-shadow: 0 5px 0 var(--gold-deep); transition: all .1s;
+  }
+  .drop:hover .btn { transform: translateY(2px); box-shadow: 0 3px 0 var(--gold-deep); }
+  .sessions { margin-top: 52px; }
+  .sessions h3 {
+    font-family: 'Sora'; font-size: 13px; font-weight: 700; letter-spacing: .12em;
+    text-transform: uppercase; color: var(--dim); margin-bottom: 16px;
+    display: flex; align-items: center; gap: 14px;
+  }
+  .sessions h3::before, .sessions h3::after { content: ''; flex: 1; height: 1px; background: var(--line); }
+  .srow {
+    display: flex; align-items: center; gap: 16px; padding: 15px 18px;
+    background: rgba(10,24,50,.5); border: 1.5px solid var(--line); border-radius: 12px;
+    margin-bottom: 10px; cursor: pointer; transition: border-color .15s;
+  }
+  .srow:hover { border-color: var(--gold); }
+  .pip { width: 30px; height: 42px; border-radius: 4px; border: 2px solid var(--gold); flex-shrink: 0;
+    background: linear-gradient(150deg, #16305e, #0c1c3c); }
+  .srow .t { font-weight: 600; font-size: 15px; flex: 1; }
+  .srow .d { color: var(--dim); font-size: 13.5px; }
+</style>
+</head>
+<body>
+  <div class="frame"><div class="frame-inner">
+    <div class="wrap">
+      <header>
+        <div class="logo">Split<span class="g">dex</span></div>
+        <nav><a class="on">Accueil</a><a>Historique</a></nav>
+      </header>
+      <section class="hero">
+        <h1>Retournez la carte,<br><span class="g">découvrez sa valeur.</span></h1>
+        <p>Splitdex identifie vos cartes Pokémon en photo, détecte leur langue, va chercher leur cote dans le bon catalogue et rédige vos annonces Vinted.</p>
+      </section>
+      <div class="drop">
+        <div class="drop-inner">
+          <div class="flip"><div class="inner">
+            <div class="face back"></div>
+            <div class="face front">
+              <svg viewBox="0 0 24 24" fill="none" stroke-width="1.8" stroke-linecap="round">
+                <path d="M12 16V5m0 0L8 9m4-4 4 4M5 16v2a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2v-2"/>
+              </svg>
+            </div>
+          </div></div>
+          <h2>Déposez vos photos ici</h2>
+          <p>Jusqu'à 20 photos par session · la détection démarre toute seule</p>
+          <span class="btn">Choisir des photos</span>
+        </div>
+      </div>
+      <section class="sessions">
+        <h3>Sessions précédentes</h3>
+        <div class="srow"><div class="pip"></div><span class="t">19 juillet</span><span class="d">25 cartes · Zénith Suprême</span></div>
+        <div class="srow"><div class="pip"></div><span class="t">18 juillet</span><span class="d">15 cartes · 🇫🇷 10 + 🇬🇧 5</span></div>
+      </section>
+    </div>
+  </div></div>
+</body>
+</html>

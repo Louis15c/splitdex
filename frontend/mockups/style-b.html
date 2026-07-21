@@ -1,0 +1,121 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Splitdex — Style B · Holo</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@400;500;700&family=Inter:wght@400;500&display=swap" rel="stylesheet">
+<style>
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+  :root {
+    --bg: #0b0d12;
+    --panel: #12151d;
+    --line: #232836;
+    --ink: #eef1f8;
+    --dim: #8b93a7;
+    --holo: linear-gradient(115deg, #62e6ff, #8a7bff 28%, #ff6ad5 55%, #ffd66b 82%, #62e6ff);
+  }
+  body { font-family: 'Inter', sans-serif; background: var(--bg); color: var(--ink); min-height: 100vh; }
+  .wrap { max-width: 860px; margin: 0 auto; padding: 0 28px 64px; }
+  header { display: flex; align-items: center; justify-content: space-between; padding: 22px 0; }
+  .logo { font-family: 'Space Grotesk'; font-weight: 700; font-size: 21px; letter-spacing: -.01em; }
+  .logo .dot {
+    display: inline-block; width: 10px; height: 10px; border-radius: 50%;
+    background: var(--holo); background-size: 300% 300%; margin-left: 4px;
+    animation: sheen 4s linear infinite;
+  }
+  nav { display: flex; gap: 22px; }
+  nav a { color: var(--dim); text-decoration: none; font-size: 14px; font-weight: 500; transition: color .15s; }
+  nav a.on, nav a:hover { color: var(--ink); }
+  .hero { padding: 58px 0 6px; }
+  .eyebrow {
+    font-family: 'Space Grotesk'; font-size: 12px; letter-spacing: .22em; text-transform: uppercase;
+    background: var(--holo); background-size: 300% 300%; animation: sheen 6s linear infinite;
+    -webkit-background-clip: text; background-clip: text; color: transparent; font-weight: 700;
+  }
+  .hero h1 {
+    font-family: 'Space Grotesk'; font-size: clamp(36px, 5.5vw, 54px); font-weight: 700;
+    letter-spacing: -.03em; line-height: 1.05; margin-top: 14px;
+  }
+  .hero p { margin-top: 16px; max-width: 52ch; color: var(--dim); font-size: 16px; line-height: 1.65; }
+  @keyframes sheen { 0% { background-position: 0% 50%; } 100% { background-position: 300% 50%; } }
+  .drop { margin-top: 44px; position: relative; border-radius: 20px; padding: 2px; background: var(--line); transition: background .3s; }
+  .drop:hover { background: var(--holo); background-size: 300% 300%; animation: sheen 3s linear infinite; }
+  .drop-inner {
+    background: var(--panel); border-radius: 18px; padding: 58px 32px;
+    text-align: center; cursor: pointer;
+  }
+  .scan-ico { width: 64px; height: 64px; margin: 0 auto 22px; position: relative; }
+  .scan-ico svg { width: 100%; height: 100%; stroke: var(--dim); }
+  .drop:hover .scan-ico svg { stroke: url(#holograd); }
+  .drop h2 { font-family: 'Space Grotesk'; font-size: 22px; font-weight: 700; letter-spacing: -.01em; }
+  .drop p { color: var(--dim); font-size: 14px; margin-top: 10px; }
+  .kbd {
+    display: inline-block; font-size: 12px; color: var(--dim); border: 1px solid var(--line);
+    border-radius: 6px; padding: 2px 8px; margin: 0 3px;
+  }
+  .drop .btn {
+    display: inline-block; margin-top: 24px; position: relative;
+    font-family: 'Space Grotesk'; font-weight: 700; font-size: 15px; color: #0b0d12;
+    background: var(--holo); background-size: 300% 300%; animation: sheen 5s linear infinite;
+    padding: 13px 30px; border-radius: 12px;
+  }
+  .stats { display: flex; gap: 40px; margin-top: 46px; padding-top: 26px; border-top: 1px solid var(--line); }
+  .stat .n { font-family: 'Space Grotesk'; font-size: 26px; font-weight: 700; }
+  .stat .l { color: var(--dim); font-size: 13px; margin-top: 2px; }
+  .sessions { margin-top: 48px; }
+  .sessions h3 { font-family: 'Space Grotesk'; font-size: 15px; font-weight: 700; margin-bottom: 14px; }
+  .srow {
+    display: flex; align-items: center; gap: 16px; padding: 15px 18px;
+    background: var(--panel); border: 1px solid var(--line); border-radius: 14px;
+    margin-bottom: 10px; cursor: pointer; transition: border-color .2s;
+  }
+  .srow:hover { border-color: #3d4557; }
+  .srow .t { font-weight: 500; font-size: 15px; flex: 1; }
+  .srow .d { color: var(--dim); font-size: 13px; }
+  .chip {
+    font-size: 12px; font-weight: 600; padding: 4px 10px; border-radius: 8px;
+    background: rgba(98,230,255,.1); color: #62e6ff;
+  }
+</style>
+</head>
+<body>
+  <svg width="0" height="0"><defs><linearGradient id="holograd" x1="0" y1="0" x2="1" y2="1">
+    <stop offset="0" stop-color="#62e6ff"/><stop offset=".5" stop-color="#ff6ad5"/><stop offset="1" stop-color="#ffd66b"/>
+  </linearGradient></defs></svg>
+  <div class="wrap">
+    <header>
+      <div class="logo">Splitdex<span class="dot"></span></div>
+      <nav><a class="on">Accueil</a><a>Historique</a></nav>
+    </header>
+    <section class="hero">
+      <span class="eyebrow">Scan · Identification · Cote · Annonce</span>
+      <h1>De la photo à l'annonce Vinted.</h1>
+      <p>Splitdex découpe vos photos de cartes Pokémon, identifie chaque carte parmi 20 000 références, détecte la langue d'impression et prépare vos annonces prêtes à coller.</p>
+    </section>
+    <div class="drop">
+      <div class="drop-inner">
+        <div class="scan-ico">
+          <svg viewBox="0 0 24 24" fill="none" stroke-width="1.4" stroke-linecap="round">
+            <path d="M4 7V5.5A1.5 1.5 0 0 1 5.5 4H7M17 4h1.5A1.5 1.5 0 0 1 20 5.5V7M20 17v1.5a1.5 1.5 0 0 1-1.5 1.5H17M7 20H5.5A1.5 1.5 0 0 1 4 18.5V17M8.5 8.5h7v7h-7z"/>
+          </svg>
+        </div>
+        <h2>Déposez vos photos ici</h2>
+        <p>Jusqu'à 20 photos par session — ou <span class="kbd">Ctrl</span>+<span class="kbd">V</span> pour coller</p>
+        <span class="btn">Lancer un scan</span>
+      </div>
+    </div>
+    <div class="stats">
+      <div class="stat"><div class="n">20 427</div><div class="l">cartes en référence</div></div>
+      <div class="stat"><div class="n">6</div><div class="l">langues détectées</div></div>
+      <div class="stat"><div class="n">~2 s</div><div class="l">par carte</div></div>
+    </div>
+    <section class="sessions">
+      <h3>Reprendre une session</h3>
+      <div class="srow"><span class="t">Session du 19 juillet</span><span class="d">25 cartes</span><span class="chip">Terminée</span></div>
+      <div class="srow"><span class="t">Session du 18 juillet</span><span class="d">15 cartes</span><span class="chip">Terminée</span></div>
+    </section>
+  </div>
+</body>
+</html>

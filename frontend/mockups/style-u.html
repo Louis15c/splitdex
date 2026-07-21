@@ -1,0 +1,121 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Splitdex — Style U · Rêve pixel</title>
+<link href="https://fonts.googleapis.com/css2?family=Press+Start+2P&family=VT323&display=swap" rel="stylesheet">
+<style>
+  * { margin:0; padding:0; box-sizing:border-box; }
+  :root {
+    --sky1:#3a2b6b; --sky2:#6b4a9e; --sky3:#c56aa8;
+    --panel:#efe6f7; --panel-line:#3a2b5e; --panel-shadow:#2a1f47;
+    --ink:#33264f; --dim:#7a6b96;
+    --lilac:#b79be6; --peach:#ffb5c9; --mint:#a8e6c8; --gold:#ffd98a;
+    --cta:#8b6bd6; --cta-ink:#fff;
+  }
+  html { image-rendering: pixelated; }
+  body {
+    font-family:'VT323', monospace; color:var(--ink); min-height:100vh; font-size:20px;
+    background:
+      repeating-conic-gradient(rgba(255,255,255,.05) 0% 25%, transparent 0% 50%) 0 0 / 4px 4px,
+      linear-gradient(180deg, var(--sky1) 0%, var(--sky2) 55%, var(--sky3) 100%);
+    padding:22px 16px 60px;
+  }
+  /* pixel stars */
+  .stars { position:fixed; inset:0; pointer-events:none; z-index:0;
+    background-image:
+      radial-gradient(1px 1px at 12% 18%, #fff, transparent),
+      radial-gradient(1px 1px at 78% 12%, #fff, transparent),
+      radial-gradient(1px 1px at 40% 8%, #ffe, transparent),
+      radial-gradient(1px 1px at 62% 24%, #fff, transparent),
+      radial-gradient(1px 1px at 90% 30%, #ffe, transparent),
+      radial-gradient(1px 1px at 25% 30%, #fff, transparent);
+  }
+  .shell { max-width:860px; margin:0 auto; position:relative; z-index:1; }
+  .pix {
+    background:var(--panel); color:var(--ink);
+    border:3px solid var(--panel-line);
+    box-shadow:
+      inset 2px 2px 0 #fff, inset -2px -2px 0 #d5c6e6,
+      5px 5px 0 var(--panel-shadow);
+  }
+  .nav { display:flex; align-items:center; gap:14px; padding:11px 16px; margin-bottom:22px; }
+  .logo { font-family:'Press Start 2P'; font-size:12px; color:var(--cta); }
+  .heart { color:var(--peach); }
+  .nav .sp { flex:1; }
+  .nav a { font-family:'Press Start 2P'; font-size:8.5px; color:var(--dim); text-decoration:none; padding:6px; }
+  .nav a.on { color:var(--ink); }
+  .hero { padding:32px 26px; margin-bottom:22px; display:grid; grid-template-columns:1.05fr .95fr; gap:26px; align-items:center; }
+  .hero h1 { font-family:'Press Start 2P'; font-size:16px; line-height:1.75; }
+  .hero h1 .c { color:var(--cta); }
+  .hero p { font-size:21px; color:var(--dim); margin-top:14px; line-height:1.35; }
+  .btnrow { display:flex; gap:12px; margin-top:20px; }
+  .pix-btn {
+    font-family:'Press Start 2P'; font-size:9.5px; color:var(--cta-ink); background:var(--cta);
+    border:3px solid var(--panel-line); padding:12px 15px; cursor:pointer;
+    box-shadow:inset 2px 2px 0 #b79bff, inset -2px -2px 0 #5e42a8; transition:transform .08s;
+  }
+  .pix-btn:active { transform:translate(2px,2px); }
+  .pix-btn.ghost { background:var(--panel); color:var(--ink); box-shadow:inset 2px 2px 0 #fff, inset -2px -2px 0 #d5c6e6; }
+  .well { background:#fbf6ff; border:3px dashed var(--lilac); padding:24px 18px; text-align:center; cursor:pointer; }
+  .well .cloud { width:52px; height:38px; margin:0 auto 12px; }
+  .well .cloud svg { width:100%; height:100%; shape-rendering:crispEdges; }
+  .well h3 { font-family:'Press Start 2P'; font-size:10px; color:var(--cta); line-height:1.7; }
+  .well p { font-size:18px; color:var(--dim); margin-top:8px; }
+  .well .pix-btn { margin-top:14px; }
+  .strip { display:flex; gap:14px; margin-bottom:22px; }
+  .chip { flex:1; padding:14px; text-align:center; }
+  .chip .n { font-family:'Press Start 2P'; font-size:12px; }
+  .chip:nth-child(1) .n { color:#c58ad6; } .chip:nth-child(2) .n { color:#6bb0d6; } .chip:nth-child(3) .n { color:#d69a6b; }
+  .chip .l { font-size:16px; color:var(--dim); margin-top:6px; }
+  .section-title { font-family:'Press Start 2P'; font-size:10px; color:#fff; text-shadow:2px 2px 0 var(--panel-shadow); margin:4px 0 14px; }
+  .row { display:flex; align-items:center; gap:14px; padding:13px 16px; margin-bottom:10px; cursor:pointer; }
+  .row .mini { width:26px; height:36px; background:linear-gradient(150deg,var(--lilac),var(--peach)); border:2px solid var(--panel-line); flex-shrink:0; }
+  .row .t { flex:1; font-size:21px; }
+  .row .d { color:var(--dim); font-size:18px; }
+  .lang { font-family:'Press Start 2P'; font-size:8px; color:var(--ink); background:var(--mint); padding:5px 8px; border:2px solid var(--panel-line); }
+  @media (max-width:720px){ .hero{ grid-template-columns:1fr; } }
+</style>
+</head>
+<body>
+  <div class="stars"></div>
+  <div class="shell">
+    <div class="pix nav">
+      <span class="logo">Splitdex <span class="heart">♥</span></span>
+      <span class="sp"></span>
+      <a class="on" href="#">Accueil</a><a href="#">Historique</a><a href="#">Vinted</a>
+    </div>
+
+    <div class="pix hero">
+      <div>
+        <h1>Vos cartes,<br><span class="c">jolies</span> et<br>bien vendues.</h1>
+        <p>Splitdex reconnaît vos cartes, détecte leur langue, trouve leur cote et rédige vos annonces Vinted.</p>
+        <div class="btnrow"><span class="pix-btn">Importer ✦</span><span class="pix-btn ghost">Historique</span></div>
+      </div>
+      <div class="pix well">
+        <div class="cloud"><svg viewBox="0 0 14 10">
+          <g fill="#b79be6" shape-rendering="crispEdges">
+            <rect x="4" y="3" width="6" height="1"/><rect x="3" y="4" width="8" height="1"/>
+            <rect x="2" y="5" width="10" height="2"/><rect x="3" y="7" width="8" height="1"/>
+          </g>
+          <g fill="#8b6bd6" shape-rendering="crispEdges"><rect x="7" y="1" width="1" height="3"/><rect x="6" y="1" width="1" height="1"/><rect x="8" y="1" width="1" height="1"/></g>
+        </svg></div>
+        <h3>DÉPOSEZ<br>VOS PHOTOS</h3>
+        <p>jusqu'à 20 · JPG PNG WEBP</p>
+        <span class="pix-btn">Parcourir</span>
+      </div>
+    </div>
+
+    <div class="strip">
+      <div class="pix chip"><div class="n">20427</div><div class="l">cartes</div></div>
+      <div class="pix chip"><div class="n">6</div><div class="l">langues</div></div>
+      <div class="pix chip"><div class="n">~2s</div><div class="l">/ carte</div></div>
+    </div>
+
+    <div class="section-title">✦ Sessions récentes</div>
+    <div class="pix row"><span class="mini"></span><span class="t">19 juillet</span><span class="d">25 cartes · Zénith Suprême</span><span class="lang">FR×25</span></div>
+    <div class="pix row"><span class="mini"></span><span class="t">18 juillet</span><span class="d">15 cartes · mixte</span><span class="lang">FR+EN</span></div>
+  </div>
+</body>
+</html>

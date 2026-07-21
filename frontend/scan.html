@@ -1,0 +1,97 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Session de scan — Splitdex</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link href="https://fonts.googleapis.com/css2?family=Fredoka:wght@400;500;600;700&family=Nunito:wght@400;500;600;700&display=swap" rel="stylesheet" />
+  <link rel="stylesheet" href="/static/css/theme.css" />
+  <style>
+    .session-head { margin-top: 22px; padding: 20px 22px; }
+    .session-head .top { display: flex; align-items: flex-start; gap: 14px; flex-wrap: wrap; }
+    .session-head h1 { font-size: 22px; }
+    .session-head .sub { color: var(--dim); font-weight: 700; font-size: 13.5px; margin-top: 3px; }
+    .session-head .actions { margin-left: auto; display: flex; gap: 10px; flex-wrap: wrap; }
+    .proc { margin-top: 16px; }
+    .proc .lbl { display: flex; align-items: center; gap: 8px; font-size: 12.5px; font-weight: 800; color: var(--dim); margin-bottom: 7px; }
+    .proc .lbl .spinner { width: 13px; height: 13px; }
+    /* barre indéterminée : un segment balaie la piste en continu tant que ça scanne */
+    .progress.indet { position: relative; overflow: hidden; }
+    .progress.indet .fill { width: 38% !important; border-radius: 999px; animation: sweep 1.15s ease-in-out infinite; }
+    @keyframes sweep { 0% { transform: translateX(-115%); } 100% { transform: translateX(320%); } }
+    @media (prefers-reduced-motion: reduce) { .progress.indet .fill { animation: none; width: 100% !important; opacity: 0.5; } }
+
+    /* Grille partagée : toutes les cartes de toutes les photos flottent
+       ensemble (2–3 colonnes selon la largeur), pour que des photos
+       individuelles ne s'empilent pas les unes sous les autres. */
+    .cards-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(262px, 1fr)); gap: 12px; align-items: start; margin-top: 20px; }
+    /* Séparateur pleine largeur, seulement pour une planche (lot > 1 carte). */
+    .lot-divider { grid-column: 1 / -1; display: flex; align-items: center; gap: 12px; margin: 14px 4px 0; }
+    .lot-divider img { width: 34px; height: 46px; object-fit: cover; border-radius: 7px; border: 2px solid var(--border); background: var(--card-2); }
+    .lot-divider .t { font-family: var(--font-head); font-weight: 600; font-size: 15px; }
+    .empty-photo { grid-column: 1 / -1; color: var(--dim); font-weight: 600; padding: 10px 4px; }
+
+    .card-block { padding: 15px; }
+    .cb-head { display: flex; gap: 11px; }
+    .cb-thumbs { display: flex; gap: 5px; flex-shrink: 0; }
+    .crop-thumb, .ref-thumb { width: 52px; height: 72px; object-fit: cover; border-radius: 8px; border: 2px solid var(--border); background: var(--card-2); }
+    .cb-title { flex: 1; min-width: 0; }
+    .cb-title .name { font-family: var(--font-head); font-weight: 600; font-size: 16px; line-height: 1.2; }
+    .cb-title .set { color: var(--dim); font-size: 12.5px; font-weight: 700; margin-top: 3px; }
+    .cb-badges { display: flex; gap: 6px; flex-wrap: wrap; margin-top: 8px; }
+
+    /* ── état de chargement d'une carte pendant le scan ── */
+    .spinner { width: 15px; height: 15px; border: 2px solid var(--border); border-top-color: var(--cta); border-radius: 50%; animation: spin 0.7s linear infinite; flex-shrink: 0; }
+    @keyframes spin { to { transform: rotate(360deg); } }
+    .loading-badge { display: inline-flex; align-items: center; gap: 7px; font-size: 12.5px; font-weight: 700; color: var(--dim); }
+    .skeleton { background: linear-gradient(90deg, var(--card-2) 25%, var(--card-3) 50%, var(--card-2) 75%); background-size: 340px 100%; animation: shimmer 1.4s infinite linear; border-radius: 7px; }
+    @keyframes shimmer { 0% { background-position: -170px 0; } 100% { background-position: 170px 0; } }
+    .sk-thumb { width: 52px; height: 72px; }
+    .sk-line { height: 13px; margin-top: 8px; }
+    .sk-line.w70 { width: 70%; } .sk-line.w45 { width: 45%; }
+    @media (prefers-reduced-motion: reduce) { .spinner, .skeleton { animation: none; } }
+
+    .cb-fields { display: flex; flex-wrap: wrap; gap: 10px; margin-top: 14px; }
+    .cb-fields .f { flex: 1 1 140px; min-width: 0; }
+    .price-row { display: flex; gap: 8px; align-items: center; }
+    .price-row input { flex: 1; }
+    .price-note { font-size: 12px; font-weight: 700; color: var(--dim); margin-top: 6px; min-height: 16px; }
+    .price-note.warn { color: var(--gold); }
+
+    details.cb-texts { margin-top: 14px; }
+    details.cb-texts > summary { cursor: pointer; font-weight: 700; font-size: 13.5px; color: var(--dim); list-style: none; padding: 8px 0; }
+    details.cb-texts > summary::-webkit-details-marker { display: none; }
+    details.cb-texts > summary::before { content: "▸ "; }
+    details.cb-texts[open] > summary::before { content: "▾ "; }
+    .text-field { margin-top: 10px; }
+    .text-field .tf-head { display: flex; align-items: center; justify-content: space-between; margin-bottom: 5px; }
+    .text-field label { font-size: 12px; font-weight: 800; color: var(--dim); letter-spacing: 0.04em; text-transform: uppercase; }
+
+    .cb-actions { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 14px; align-items: center; }
+    .cb-actions .spacer { flex: 1; }
+
+    details.correct { margin-top: 12px; }
+    details.correct > summary { cursor: pointer; font-weight: 700; font-size: 12.5px; color: var(--faint); }
+    .search-results { margin-top: 10px; display: flex; flex-direction: column; gap: 8px; }
+    .cand-row { display: flex; align-items: center; gap: 10px; padding: 8px; border: 2px solid var(--border); border-radius: var(--radius-xs); }
+    .cand-row img { width: 30px; height: 42px; object-fit: cover; border-radius: 5px; background: var(--card-2); }
+    .cand-row .cl { flex: 1; font-size: 13px; font-weight: 600; }
+    .cand-row .cs { font-size: 12px; color: var(--faint); font-weight: 700; }
+
+    .alts { margin-top: 10px; }
+    .alts > summary { cursor: pointer; font-size: 12.5px; font-weight: 700; color: var(--faint); }
+
+    .empty-state { margin-top: 40px; padding: 40px 24px; text-align: center; }
+    .empty-state h2 { font-size: 20px; }
+    .empty-state p { color: var(--dim); font-weight: 600; margin-top: 8px; }
+    .cb-warn { font-size: 12.5px; font-weight: 700; color: var(--gold); margin-top: 8px; }
+  </style>
+</head>
+<body>
+  <main class="wrap">
+    <div id="session-root"></div>
+  </main>
+  <script type="module" src="/static/js/scan.js"></script>
+</body>
+</html>

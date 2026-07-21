@@ -1,0 +1,17 @@
+fastapi==0.115.0
+uvicorn[standard]==0.30.6
+python-multipart==0.0.9
+aiofiles==24.1.0
+opencv-python-headless==4.10.0.84
+numpy==2.4.6
+httpx==0.27.2
+Pillow==10.4.0
+ImageHash==4.3.1
+python-dotenv==1.0.1
+Jinja2==3.1.4
+pytesseract==0.3.13
+ultralytics==8.4.96
+
+# torch/torchvision (CPU) : installer séparément avant le reste, depuis l'index PyTorch CPU
+# (pip install torch --index-url https://download.pytorch.org/whl/cpu), voir README.
+# Pas de pin ici : ultralytics l'installe déjà comme dépendance, avec la même contrainte.

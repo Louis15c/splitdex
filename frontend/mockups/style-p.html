@@ -1,0 +1,143 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Splitdex — Style P · Clay × Holo</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Fredoka:wght@400;500;600;700&family=Nunito:wght@400;500;600;700&display=swap" rel="stylesheet">
+<style>
+  * { margin:0; padding:0; box-sizing:border-box; }
+  :root {
+    --canvas:#0e1016; --card:#171b24; --card2:#1d2230;
+    --border:rgba(160,175,205,.16); --border-h:rgba(160,175,205,.35); --shadow:rgba(0,0,0,.5);
+    --ink:#e9edf6; --dim:#8e97ab;
+  }
+  body { font-family:'Nunito',sans-serif; background:var(--canvas); color:var(--ink); min-height:100vh; }
+  h1,h2,h3,h4 { font-family:'Fredoka',sans-serif; }
+  /* clay adouci : mêmes rayons/mécanique, bordures discrètes, ombre sombre */
+  .clay {
+    background:var(--card); border-radius:24px; border:2px solid var(--border);
+    box-shadow:6px 6px 0 var(--shadow); transition:all .18s ease;
+  }
+  .clay.press:hover { box-shadow:3px 3px 0 var(--shadow); transform:translate(3px,3px); border-color:var(--border-h); }
+  .btn-primary {
+    display:inline-flex; align-items:center; justify-content:center; padding:.95rem 1.9rem;
+    background:linear-gradient(115deg,#62e6ff,#8a7bff 30%,#ff6ad5 60%,#ffd66b 90%); color:#0e1016; font-weight:700; border-radius:16px;
+    border:2px solid rgba(255,255,255,.25); box-shadow:4px 4px 0 var(--shadow);
+    transition:all .15s ease; cursor:pointer; font-size:15px;
+  }
+  .btn-primary:hover { box-shadow:2px 2px 0 var(--shadow); transform:translate(2px,2px); }
+  .btn-ghost {
+    display:inline-flex; align-items:center; justify-content:center; padding:.95rem 1.9rem;
+    background:var(--card2); color:var(--ink); font-weight:700; border-radius:16px;
+    border:2px solid var(--border); box-shadow:4px 4px 0 var(--shadow); transition:all .15s; cursor:pointer; font-size:15px;
+  }
+  .btn-ghost:hover { box-shadow:2px 2px 0 var(--shadow); transform:translate(2px,2px); border-color:var(--border-h); }
+  .pill {
+    display:inline-flex; align-items:center; gap:8px; padding:8px 16px; border-radius:999px;
+    border:2px solid var(--border); font-weight:700; font-size:13.5px;
+  }
+  .navwrap { position:sticky; top:14px; z-index:50; padding:0 16px; }
+  .nav { max-width:880px; margin:0 auto; padding:13px 22px; display:flex; align-items:center; justify-content:space-between; }
+  .brand { display:flex; align-items:center; gap:10px; font-family:'Fredoka'; font-weight:600; font-size:19px; }
+  .brand .mark {
+    width:34px; height:34px; border-radius:12px; background:linear-gradient(115deg,#62e6ff,#8a7bff 30%,#ff6ad5 60%,#ffd66b 90%);
+    border:2px solid rgba(255,255,255,.25); display:flex; align-items:center; justify-content:center;
+  }
+  .brand .mark svg { width:18px; height:18px; stroke:#0e1016; }
+  .nav nav { display:flex; align-items:center; gap:22px; }
+  .nav nav a { text-decoration:none; color:var(--dim); font-weight:700; font-size:14px; transition:color .15s; }
+  .nav nav a.on, .nav nav a:hover { color:var(--ink); }
+  .nav .cta-sm { padding:9px 18px; font-size:13.5px; border-radius:12px; }
+  .wrap { max-width:880px; margin:0 auto; padding:0 24px 72px; }
+  .hero { padding:60px 0 32px; display:grid; grid-template-columns:1.05fr .95fr; gap:34px; align-items:center; }
+  .hero h1 { font-size:clamp(32px,4.6vw,46px); font-weight:600; line-height:1.14; margin:20px 0 16px; }
+  .hero h1 .c { background:linear-gradient(115deg,#62e6ff,#ff6ad5,#ffd66b);-webkit-background-clip:text;background-clip:text;color:transparent; }
+  .hero > div > p { color:var(--dim); font-size:16.5px; line-height:1.65; max-width:42ch; font-weight:600; }
+  .hero .btns { display:flex; gap:14px; margin-top:26px; }
+  .dropcard { padding:24px; cursor:pointer; }
+  .dz { border:2px dashed var(--border-h); border-radius:16px; padding:32px 22px; text-align:center; transition:all .2s; }
+  .dropcard:hover .dz { border-color:#62e6ff; background:rgba(255,255,255,.02); }
+  .dz .ico {
+    width:52px; height:52px; margin:0 auto 14px; border-radius:16px; background:rgba(98,230,255,.14);
+    border:2px solid var(--border); display:flex; align-items:center; justify-content:center;
+  }
+  .dz .ico svg { width:24px; height:24px; stroke:#62e6ff; }
+  .dz h3 { font-size:19px; font-weight:500; }
+  .dz p { font-size:13.5px; color:var(--dim); margin-top:6px; font-weight:600; }
+  .dz .fake-btn { margin-top:18px; padding:11px 24px; font-size:14px; }
+  .prog { margin-top:18px; }
+  .prog .lbl { display:flex; justify-content:space-between; font-size:12.5px; font-weight:700; color:var(--dim); margin-bottom:7px; }
+  .prog .bar { height:11px; border-radius:999px; border:2px solid var(--border); background:var(--canvas); overflow:hidden; }
+  .prog .fill { height:100%; width:72%; background:linear-gradient(115deg,#62e6ff,#8a7bff 30%,#ff6ad5 60%,#ffd66b 90%); border-radius:999px; }
+  section.block { padding:42px 0 6px; }
+  .eyebrow-row { text-align:center; }
+  section.block h2 { text-align:center; font-size:clamp(24px,3.4vw,32px); font-weight:600; margin:18px 0 6px; }
+  section.block .sub { text-align:center; color:var(--dim); font-weight:600; font-size:15px; }
+  .grid3 { display:grid; grid-template-columns:repeat(3,1fr); gap:16px; margin-top:26px; }
+  .feat { padding:22px; }
+  .feat .fic {
+    width:44px; height:44px; border-radius:14px; border:2px solid var(--border);
+    display:flex; align-items:center; justify-content:center; margin-bottom:14px;
+  }
+  .feat .fic svg { width:21px; height:21px; fill:none; stroke-width:2; }
+  .feat h4 { font-size:16.5px; font-weight:500; }
+  .feat p { font-size:13.5px; color:var(--dim); line-height:1.55; margin-top:6px; font-weight:600; }
+  .grid2 { display:grid; grid-template-columns:1fr 1fr; gap:16px; margin-top:26px; }
+  .sess { padding:20px 22px; display:flex; align-items:center; gap:16px; cursor:pointer; }
+  .sess .mini { width:38px; height:53px; border-radius:8px; border:2px solid var(--border-h); background:var(--card2); flex-shrink:0; }
+  .sess .m { flex:1; }
+  .sess .t { font-family:'Fredoka'; font-weight:500; font-size:16px; }
+  .sess .d { font-size:13px; color:var(--dim); font-weight:700; margin-top:2px; }
+  .lang { font-size:12px; font-weight:800; padding:4px 11px; border-radius:999px; border:2px solid var(--border); }
+  @media (max-width:760px) { .hero { grid-template-columns:1fr; } .grid3 { grid-template-columns:1fr; } .grid2 { grid-template-columns:1fr; } }
+</style>
+</head>
+<body>
+  <div class="navwrap"><div class="clay nav">
+    <div class="brand"><span class="mark"><svg viewBox="0 0 24 24" fill="none" stroke-width="2.4" stroke-linecap="round"><path d="M4 7V5a1 1 0 0 1 1-1h2M17 4h2a1 1 0 0 1 1 1v2M20 17v2a1 1 0 0 1-1 1h-2M7 20H5a1 1 0 0 1-1-1v-2M9 9h6v6H9z"/></svg></span>Splitdex</div>
+    <nav><a class="on" href="#">Accueil</a><a href="#">Historique</a><span class="btn-primary cta-sm">Nouveau scan</span></nav>
+  </div></div>
+  <div class="wrap">
+    <section class="hero">
+      <div>
+        <span class="pill" style="background:rgba(98,230,255,.1);color:#62e6ff"><span style="width:8px;height:8px;border-radius:50%;background:#62e6ff"></span>Scan · Cote · Annonce</span>
+        <h1>Scannez vos cartes,<br><span class="c">vendez-les</span> sans effort</h1>
+        <p>Identification sur 20 427 références, langue détectée à la lecture du texte, cote au bon catalogue et annonce Vinted rédigée.</p>
+        <div class="btns"><span class="btn-primary">Importer des photos</span><span class="btn-ghost">Historique</span></div>
+      </div>
+      <div class="clay press dropcard">
+        <div class="dz">
+          <div class="ico"><svg viewBox="0 0 24 24" fill="none" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 15V4m0 0L8 8m4-4 4 4M4 15v3a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2v-3"/></svg></div>
+          <h3>Déposez vos photos</h3>
+          <p>Jusqu'à 20 photos · JPG, PNG, WebP</p>
+          <span class="btn-primary fake-btn">Parcourir</span>
+        </div>
+        <div class="prog"><div class="lbl"><span>Dernière session</span><span>18/25 fiches prêtes</span></div>
+        <div class="bar"><div class="fill"></div></div></div>
+      </div>
+    </section>
+
+    <section class="block">
+      <div class="eyebrow-row"><span class="pill" style="background:rgba(255,106,213,.13);color:#ff6ad5">Comment ça marche</span></div>
+      <h2>Tout le travail d'expert, automatique</h2>
+      <p class="sub">De la photo brute à l'annonce prête à coller</p>
+      <div class="grid3">
+        <div class="clay press feat"><div class="fic" style="background:rgba(98,230,255,.14)"><svg viewBox="0 0 24 24" style="stroke:#62e6ff"><rect x="4" y="5" width="16" height="14" rx="2"/><circle cx="12" cy="12" r="3.2"/></svg></div><h4>Découpe & identification</h4><p>Chaque carte est repérée, découpée et reconnue : nom, set, numéro, rareté.</p></div>
+        <div class="clay press feat"><div class="fic" style="background:rgba(255,106,213,.13)"><svg viewBox="0 0 24 24" style="stroke:#ff6ad5"><path d="M4 15c2.5 0 2.5-6 5-6s2.5 8 5 8 2.5-10 5-10"/></svg></div><h4>Cote par langue</h4><p>Le prix est cherché dans le catalogue de la langue détectée — FR, EN ou JP.</p></div>
+        <div class="clay press feat"><div class="fic" style="background:rgba(255,214,107,.13)"><svg viewBox="0 0 24 24" style="stroke:#ffd66b"><path d="M6 4h9l5 5v11a1 1 0 0 1-1 1H6a1 1 0 0 1-1-1V5a1 1 0 0 1 1-1z"/><path d="M9 13h6M9 16h4"/></svg></div><h4>Annonce Vinted</h4><p>Titre, description et hashtags rédigés en français, remplis dans Vinted en un clic.</p></div>
+      </div>
+    </section>
+
+    <section class="block">
+      <div class="eyebrow-row"><span class="pill" style="background:rgba(98,230,255,.14);color:#62e6ff">Historique</span></div>
+      <h2>Vos dernières sessions</h2>
+      <div class="grid2">
+        <div class="clay press sess"><div class="mini"></div><div class="m"><div class="t">19 juillet</div><div class="d">25 cartes · Zénith Suprême</div></div><span class="lang" style="background:rgba(255,214,107,.13);color:#ffd66b">FR ×25</span></div>
+        <div class="clay press sess"><div class="mini"></div><div class="m"><div class="t">18 juillet</div><div class="d">15 cartes · mixte</div></div><span class="lang" style="background:rgba(255,106,213,.13);color:#ff6ad5">FR+EN</span></div>
+      </div>
+    </section>
+  </div>
+</body>
+</html>

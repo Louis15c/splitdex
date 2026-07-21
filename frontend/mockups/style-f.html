@@ -1,0 +1,117 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Splitdex — Style F · Néon</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Unbounded:wght@500;700&family=Outfit:wght@400;500;600&display=swap" rel="stylesheet">
+<style>
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+  :root {
+    --bg: #12101f;
+    --panel: #191631;
+    --line: #2b2650;
+    --ink: #f1eefc;
+    --dim: #9a93bd;
+    --volt: #ffd60a;
+    --volt-glow: rgba(255,214,10,.45);
+  }
+  body {
+    font-family: 'Outfit', sans-serif; color: var(--ink); min-height: 100vh;
+    background:
+      radial-gradient(ellipse 90% 55% at 80% -10%, rgba(124,77,255,.22), transparent 60%),
+      radial-gradient(ellipse 70% 45% at 10% 105%, rgba(255,214,10,.08), transparent 55%),
+      var(--bg);
+  }
+  .wrap { max-width: 860px; margin: 0 auto; padding: 0 28px 64px; }
+  header { display: flex; align-items: center; justify-content: space-between; padding: 22px 0; }
+  .logo { font-family: 'Unbounded'; font-weight: 700; font-size: 18px; letter-spacing: .01em; }
+  .logo .volt { color: var(--volt); text-shadow: 0 0 18px var(--volt-glow); }
+  nav { display: flex; gap: 6px; }
+  nav a {
+    color: var(--dim); text-decoration: none; font-size: 14px; font-weight: 500;
+    padding: 8px 16px; border-radius: 10px; transition: all .15s;
+  }
+  nav a.on { color: var(--volt); background: rgba(255,214,10,.08); }
+  nav a:hover:not(.on) { color: var(--ink); }
+  .hero { padding: 54px 0 8px; }
+  .hero h1 {
+    font-family: 'Unbounded'; font-size: clamp(28px, 4.6vw, 42px); font-weight: 700;
+    line-height: 1.16; letter-spacing: -.01em;
+  }
+  .hero h1 .glow { color: var(--volt); text-shadow: 0 0 26px var(--volt-glow); }
+  .hero p { margin-top: 18px; max-width: 52ch; color: var(--dim); font-size: 16px; line-height: 1.65; }
+  .drop {
+    margin-top: 42px; border: 1.5px solid var(--line); border-radius: 22px;
+    background: var(--panel); padding: 52px 32px; text-align: center; cursor: pointer;
+    position: relative; transition: all .2s;
+  }
+  .drop:hover {
+    border-color: var(--volt);
+    box-shadow: 0 0 0 1px var(--volt), 0 0 44px rgba(255,214,10,.18), inset 0 0 44px rgba(255,214,10,.04);
+  }
+  .bolt { width: 58px; height: 58px; margin: 0 auto 20px; position: relative; }
+  .bolt svg { width: 100%; height: 100%; fill: var(--volt); filter: drop-shadow(0 0 14px var(--volt-glow)); }
+  .drop:hover .bolt svg { animation: crackle .35s ease; }
+  @keyframes crackle { 0%,100% { transform: none; } 30% { transform: scale(1.12) rotate(-4deg); } 60% { transform: scale(.96) rotate(2deg); } }
+  .drop h2 { font-family: 'Unbounded'; font-size: 19px; font-weight: 500; }
+  .drop p { color: var(--dim); font-size: 14.5px; margin-top: 10px; }
+  .drop .btn {
+    display: inline-block; margin-top: 24px; background: var(--volt); color: #1a1602;
+    font-weight: 600; font-size: 15px; padding: 13px 32px; border-radius: 14px;
+    box-shadow: 0 4px 22px var(--volt-glow); transition: transform .12s;
+  }
+  .drop:hover .btn { transform: translateY(-1px); }
+  .marquee {
+    margin-top: 44px; overflow: hidden; border-top: 1px solid var(--line); border-bottom: 1px solid var(--line);
+    padding: 13px 0; white-space: nowrap; font-size: 13px; letter-spacing: .16em;
+    text-transform: uppercase; color: var(--dim);
+  }
+  .marquee span { margin-right: 42px; }
+  .marquee .y { color: var(--volt); }
+  .sessions { margin-top: 44px; }
+  .sessions h3 { font-family: 'Unbounded'; font-size: 14px; font-weight: 500; margin-bottom: 16px; }
+  .srow {
+    display: flex; align-items: center; gap: 16px; padding: 15px 18px;
+    background: var(--panel); border: 1px solid var(--line); border-radius: 16px;
+    margin-bottom: 10px; cursor: pointer; transition: all .15s;
+  }
+  .srow:hover { border-color: #4c4488; transform: translateX(4px); }
+  .led { width: 8px; height: 8px; border-radius: 50%; background: var(--volt); box-shadow: 0 0 10px var(--volt-glow); flex-shrink: 0; }
+  .srow .t { font-weight: 500; font-size: 15px; flex: 1; }
+  .srow .d { color: var(--dim); font-size: 13.5px; }
+</style>
+</head>
+<body>
+  <div class="wrap">
+    <header>
+      <div class="logo">SPLIT<span class="volt">DEX</span></div>
+      <nav><a class="on">Accueil</a><a>Historique</a></nav>
+    </header>
+    <section class="hero">
+      <h1>La boutique est ouverte.<br><span class="glow">Scannez vos cartes.</span></h1>
+      <p>Photo → identification → cote dans la bonne langue → annonce Vinted rédigée en français. Splitdex fait le travail d'expert, vous gardez la marge.</p>
+    </section>
+    <div class="drop">
+      <div class="bolt">
+        <svg viewBox="0 0 24 24"><path d="M13 2 4.5 13.5H11L9.5 22 19 10h-6.5L13 2z"/></svg>
+      </div>
+      <h2>Déposez vos photos</h2>
+      <p>Jusqu'à 20 photos · planches, classeurs ou cartes seules</p>
+      <span class="btn">Démarrer le scan</span>
+    </div>
+    <div class="marquee">
+      <span><span class="y">20 427</span> cartes en référence</span>
+      <span><span class="y">6</span> langues détectées</span>
+      <span>cote par catalogue <span class="y">FR · EN · JP</span></span>
+      <span>annonce <span class="y">Vinted</span> en un clic</span>
+    </div>
+    <section class="sessions">
+      <h3>Sessions récentes</h3>
+      <div class="srow"><span class="led"></span><span class="t">19 juillet</span><span class="d">25 cartes · Zénith Suprême</span></div>
+      <div class="srow"><span class="led"></span><span class="t">18 juillet</span><span class="d">15 cartes · FR + EN</span></div>
+    </section>
+  </div>
+</body>
+</html>

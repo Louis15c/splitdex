@@ -1,0 +1,36 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Historique — Splitdex</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link href="https://fonts.googleapis.com/css2?family=Fredoka:wght@400;500;600;700&family=Nunito:wght@400;500;600;700&display=swap" rel="stylesheet" />
+  <link rel="stylesheet" href="/static/css/theme.css" />
+  <style>
+    .page-head { padding: 34px 0 20px; }
+    .page-head h1 { font-size: 26px; }
+    .page-head p { color: var(--dim); font-weight: 600; margin-top: 6px; }
+    .hist-row { display: flex; align-items: center; gap: 14px; padding: 15px 16px; }
+    .hist-row .cover { width: 44px; height: 60px; border-radius: 8px; border: 2px solid var(--border); object-fit: cover; background: var(--card-2); flex-shrink: 0; }
+    .hist-row .meta { flex: 1; min-width: 0; text-decoration: none; color: inherit; }
+    .hist-row .t { font-family: var(--font-head); font-weight: 500; font-size: 16px; }
+    .hist-row .d { color: var(--dim); font-size: 13px; font-weight: 700; margin-top: 3px; }
+    .hist-row .langs { display: flex; gap: 5px; margin-top: 7px; flex-wrap: wrap; }
+    .del-btn { flex-shrink: 0; }
+    .empty { padding: 48px 24px; text-align: center; }
+    .empty h2 { font-size: 20px; }
+    .empty p { color: var(--dim); font-weight: 600; margin-top: 8px; }
+  </style>
+</head>
+<body>
+  <main class="wrap">
+    <div class="page-head">
+      <h1>Historique des sessions</h1>
+      <p>Chaque envoi de photos est une session : rouvrez-la pour reprendre là où vous en étiez.</p>
+    </div>
+    <div id="history-list" class="stack"></div>
+  </main>
+  <script type="module" src="/static/js/history.js"></script>
+</body>
+</html>

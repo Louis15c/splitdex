@@ -1,0 +1,128 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Splitdex — Style A · Tapis de jeu</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Bricolage+Grotesque:opsz,wght@12..96,400;12..96,600;12..96,800&family=Inter:wght@400;500;600&display=swap" rel="stylesheet">
+<style>
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+  :root {
+    --felt: #14453a;
+    --felt-deep: #0d332b;
+    --line: rgba(255,255,255,.14);
+    --ink: #f3efe6;
+    --ink-dim: #b9c7c0;
+    --card: #fbf9f4;
+    --card-ink: #232a26;
+    --gold: #e8b64c;
+  }
+  body {
+    font-family: 'Inter', sans-serif;
+    background:
+      radial-gradient(ellipse 120% 80% at 50% -10%, rgba(255,255,255,.07), transparent 55%),
+      radial-gradient(ellipse 100% 100% at 50% 110%, rgba(0,0,0,.35), transparent 60%),
+      var(--felt);
+    color: var(--ink);
+    min-height: 100vh;
+  }
+  .wrap { max-width: 860px; margin: 0 auto; padding: 0 28px 64px; }
+  header {
+    display: flex; align-items: center; justify-content: space-between;
+    padding: 20px 0; border-bottom: 1px solid var(--line);
+  }
+  .logo { font-family: 'Bricolage Grotesque'; font-weight: 800; font-size: 22px; letter-spacing: -.02em; }
+  .logo em { font-style: normal; color: var(--gold); }
+  nav { display: flex; gap: 4px; }
+  nav a {
+    color: var(--ink-dim); text-decoration: none; font-size: 14px; font-weight: 500;
+    padding: 8px 14px; border-radius: 999px; transition: all .15s;
+  }
+  nav a.on, nav a:hover { color: var(--ink); background: rgba(255,255,255,.08); }
+  .hero { padding: 52px 0 8px; text-align: center; }
+  .hero h1 {
+    font-family: 'Bricolage Grotesque'; font-size: clamp(38px, 6vw, 56px); font-weight: 800;
+    letter-spacing: -.03em; line-height: 1.02;
+  }
+  .hero p { margin: 14px auto 0; max-width: 46ch; color: var(--ink-dim); font-size: 16px; line-height: 1.6; }
+  .drop {
+    margin-top: 40px; position: relative;
+    border: 2px dashed rgba(255,255,255,.35); border-radius: 18px;
+    padding: 56px 32px 48px; text-align: center; cursor: pointer;
+    background: rgba(255,255,255,.03); transition: all .2s;
+  }
+  .drop:hover { border-color: var(--gold); background: rgba(232,182,76,.06); }
+  .drop .cards { display: flex; justify-content: center; margin-bottom: 26px; height: 96px; }
+  .mini {
+    width: 68px; height: 95px; background: var(--card); border-radius: 6px;
+    box-shadow: 0 12px 24px rgba(0,0,0,.45), inset 0 0 0 4px #d9d2c0;
+    position: relative;
+  }
+  .mini::after {
+    content: ''; position: absolute; inset: 9px 8px 32px; border-radius: 3px;
+    background: linear-gradient(140deg, #7fb6a4, #3e7d6b);
+  }
+  .mini:nth-child(1) { transform: rotate(-10deg) translateX(14px) translateY(6px); }
+  .mini:nth-child(2) { transform: rotate(-1deg); z-index: 1; }
+  .mini:nth-child(3) { transform: rotate(9deg) translateX(-14px) translateY(7px); }
+  .drop:hover .mini:nth-child(1) { transform: rotate(-13deg) translateX(10px) translateY(2px); }
+  .drop:hover .mini:nth-child(3) { transform: rotate(12deg) translateX(-10px) translateY(3px); }
+  .mini { transition: transform .25s cubic-bezier(.34,1.56,.64,1); }
+  .drop h2 { font-family: 'Bricolage Grotesque'; font-size: 22px; font-weight: 600; }
+  .drop p { color: var(--ink-dim); font-size: 14px; margin-top: 8px; }
+  .drop .btn {
+    display: inline-block; margin-top: 22px; background: var(--gold); color: #2c2410;
+    font-weight: 600; font-size: 15px; padding: 12px 28px; border-radius: 999px;
+    box-shadow: 0 6px 18px rgba(232,182,76,.3);
+  }
+  .sessions { margin-top: 56px; }
+  .sessions h3 {
+    font-size: 12px; text-transform: uppercase; letter-spacing: .14em;
+    color: var(--ink-dim); font-weight: 600; margin-bottom: 16px;
+    display: flex; align-items: center; gap: 12px;
+  }
+  .sessions h3::after { content: ''; flex: 1; height: 1px; background: var(--line); }
+  .srow {
+    display: flex; align-items: center; gap: 16px; padding: 14px 16px;
+    background: rgba(255,255,255,.05); border: 1px solid var(--line);
+    border-radius: 12px; margin-bottom: 10px; cursor: pointer; transition: background .15s;
+  }
+  .srow:hover { background: rgba(255,255,255,.09); }
+  .thumb {
+    width: 34px; height: 47px; border-radius: 4px; background: var(--card);
+    box-shadow: 0 3px 8px rgba(0,0,0,.4); flex-shrink: 0;
+  }
+  .srow .meta { flex: 1; }
+  .srow .t { font-weight: 600; font-size: 15px; }
+  .srow .d { color: var(--ink-dim); font-size: 13px; margin-top: 2px; }
+  .badge {
+    font-size: 12px; font-weight: 600; padding: 4px 12px; border-radius: 999px;
+    background: rgba(232,182,76,.15); color: var(--gold); border: 1px solid rgba(232,182,76,.3);
+  }
+</style>
+</head>
+<body>
+  <div class="wrap">
+    <header>
+      <div class="logo">Split<em>dex</em></div>
+      <nav><a class="on">Accueil</a><a>Historique</a></nav>
+    </header>
+    <section class="hero">
+      <h1>Vos cartes,<br>prêtes à vendre.</h1>
+      <p>Photographiez vos cartes Pokémon : Splitdex les découpe, les identifie, détecte leur langue, estime leur cote et rédige vos annonces Vinted.</p>
+    </section>
+    <div class="drop">
+      <div class="cards"><div class="mini"></div><div class="mini"></div><div class="mini"></div></div>
+      <h2>Posez vos photos sur le tapis</h2>
+      <p>Glissez jusqu'à 20 photos, ou cliquez pour parcourir · JPG, PNG, WebP</p>
+      <span class="btn">Choisir des photos</span>
+    </div>
+    <section class="sessions">
+      <h3>Dernières sessions</h3>
+      <div class="srow"><div class="thumb"></div><div class="meta"><div class="t">Session du 19 juillet</div><div class="d">25 cartes · Zénith Suprême, Tempête Argentée</div></div><span class="badge">25 identifiées</span></div>
+      <div class="srow"><div class="thumb"></div><div class="meta"><div class="t">Session du 18 juillet</div><div class="d">15 cartes · 10 françaises, 5 anglaises</div></div><span class="badge">15 identifiées</span></div>
+    </section>
+  </div>
+</body>
+</html>

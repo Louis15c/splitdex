@@ -1,0 +1,78 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Splitdex — scanner et vendre vos cartes Pokémon</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link href="https://fonts.googleapis.com/css2?family=Fredoka:wght@400;500;600;700&family=Nunito:wght@400;500;600;700&display=swap" rel="stylesheet" />
+  <link rel="stylesheet" href="/static/css/theme.css" />
+  <style>
+    .hero { padding: 46px 0 12px; text-align: center; }
+    .hero .eyebrow { margin-bottom: 18px; }
+    .hero h1 { font-size: clamp(30px, 5.2vw, 44px); font-weight: 600; line-height: 1.14; }
+    .hero h1 .c { color: var(--cta); }
+    .hero p.lead { color: var(--dim); font-size: 16.5px; line-height: 1.6; max-width: 46ch; margin: 14px auto 0; font-weight: 600; }
+    .dropcard { margin-top: 30px; }
+    #status { margin-top: 14px; text-align: center; font-weight: 600; color: var(--dim); min-height: 22px; }
+    .stat-strip { display: flex; gap: 12px; margin-top: 26px; }
+    .stat { flex: 1; padding: 16px 10px; text-align: center; }
+    .stat .n { font-family: var(--font-head); font-size: 22px; font-weight: 600; }
+    .stat .l { color: var(--dim); font-size: 12.5px; font-weight: 700; margin-top: 3px; }
+    .stat.s1 .n { color: var(--gold); }
+    .stat.s2 .n { color: var(--blue); }
+    .stat.s3 .n { color: var(--pink); }
+    .sessions { margin-top: 42px; }
+    .sessions-head { display: flex; align-items: center; justify-content: space-between; margin-bottom: 14px; }
+    .sessions-head h2 { font-size: 19px; }
+    .sessions-head a { color: var(--dim); font-weight: 700; font-size: 13.5px; text-decoration: none; }
+    .sessions-head a:hover { color: var(--ink); }
+    .session-row { display: flex; align-items: center; gap: 14px; padding: 14px 16px; text-decoration: none; color: inherit; }
+    .session-row .cover { width: 40px; height: 55px; border-radius: 8px; border: 2px solid var(--border); object-fit: cover; background: var(--card-2); flex-shrink: 0; }
+    .session-row .meta { flex: 1; min-width: 0; }
+    .session-row .t { font-family: var(--font-head); font-weight: 500; font-size: 15.5px; }
+    .session-row .d { color: var(--dim); font-size: 13px; font-weight: 700; margin-top: 2px; }
+    .empty-sessions { text-align: center; color: var(--faint); font-weight: 600; padding: 20px; }
+  </style>
+</head>
+<body>
+  <main class="wrap">
+    <section class="hero">
+      <span class="pill eyebrow" style="background: rgba(123,216,138,0.1); color: var(--cta);"><span class="dot"></span>Scan · Identification · Cote · Annonce</span>
+      <h1>Scannez vos cartes,<br><span class="c">vendez-les</span> sans effort</h1>
+      <p class="lead">Photographiez vos cartes Pokémon : Splitdex les découpe, les identifie parmi 20 000 références, détecte leur langue, estime leur cote et rédige vos annonces Vinted.</p>
+    </section>
+
+    <div class="clay press dropcard dropzone" id="dropzone">
+      <div class="inner">
+        <div class="ico">
+          <svg viewBox="0 0 24 24" fill="none" stroke-width="2.1" stroke-linecap="round" stroke-linejoin="round">
+            <path d="M12 15V4m0 0L8 8m4-4 4 4M4 15v3a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2v-3" />
+          </svg>
+        </div>
+        <h3>Déposez vos photos</h3>
+        <p class="sub">Glissez jusqu'à 20 photos, cliquez pour parcourir, ou collez (Ctrl+V) · JPG, PNG, WebP</p>
+        <span class="btn btn-primary" id="browse-btn" style="margin-top: 20px;">Parcourir les fichiers</span>
+      </div>
+      <input type="file" id="file-input" accept="image/jpeg,image/png,image/webp" multiple hidden />
+    </div>
+    <p id="status"></p>
+
+    <div class="stat-strip">
+      <div class="clay stat s1"><div class="n" id="stat-cards">—</div><div class="l">CARTES EN BASE</div></div>
+      <div class="clay stat s2"><div class="n">6</div><div class="l">LANGUES DÉTECTÉES</div></div>
+      <div class="clay stat s3"><div class="n">~2 s</div><div class="l">PAR CARTE</div></div>
+    </div>
+
+    <section class="sessions">
+      <div class="sessions-head">
+        <h2>Sessions récentes</h2>
+        <a href="/history">Tout voir →</a>
+      </div>
+      <div id="recent-sessions" class="stack"></div>
+    </section>
+  </main>
+
+  <script type="module" src="/static/js/home.js"></script>
+</body>
+</html>
