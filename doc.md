@@ -621,8 +621,11 @@ la section « Repli embeddings » plus haut.
 double-clic → démarre le serveur (via `run.sh`) et ouvre `localhost:8000` dans
 Chrome (repli : navigateur par défaut). Glissez-la dans le **Dock** ou vers
 **Applications** pour un accès en un clic, avec l'icône Pokéball. Comme elle
-n'est pas signée, au **premier** lancement : clic droit → **Ouvrir** (ou
-`xattr -dr com.apple.quarantine macos/Splitdex.app`). Gardez le `.app` dans le
+n'est pas signée, il faut lever Gatekeeper au **premier** lancement. Sur
+**macOS Sequoia**, le clic droit → *Ouvrir* ne suffit plus (le dialogue ne
+propose que « Terminé ») : soit `xattr -dr com.apple.quarantine macos/Splitdex.app`
+puis double-clic, soit après une tentative de lancement **Réglages Système →
+Confidentialité et sécurité → « Ouvrir quand même »**. Gardez le `.app` dans le
 dossier `macos/` du projet — il repère la racine par sa position.
 
 ### Données : cache de référence, modèle, embeddings

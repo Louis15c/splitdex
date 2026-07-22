@@ -86,10 +86,15 @@ de l'application.
 Le projet contient **`macos/Splitdex.app`**, un lanceur : un double-clic démarre
 le serveur et ouvre Splitdex dans Chrome (ou votre navigateur par défaut).
 
-1. Ouvrez le dossier `macos/` du projet dans le Finder.
-2. **Premier lancement** (app non signée) : clic droit sur `Splitdex.app` →
-   **Ouvrir** → *Ouvrir*. (Ou : `xattr -dr com.apple.quarantine macos/Splitdex.app`.)
-3. Glissez `Splitdex.app` dans le **Dock** pour la lancer d'un clic ensuite —
+1. **Premier lancement** (app non signée) — sur **macOS Sequoia**, le clic droit
+   → *Ouvrir* ne suffit plus. Le plus simple, depuis le dossier du projet :
+   ```bash
+   xattr -dr com.apple.quarantine macos/Splitdex.app
+   ```
+   puis double-cliquez sur `Splitdex.app`. *(Sans Terminal : double-cliquez, puis
+   **Réglages Système → Confidentialité et sécurité** → tout en bas, **« Ouvrir
+   quand même »**.)*
+2. Glissez ensuite `Splitdex.app` dans le **Dock** pour la lancer d'un clic —
    icône Pokéball incluse.
 
 > Gardez le `.app` dans le dossier `macos/` du projet : il y repère la racine
