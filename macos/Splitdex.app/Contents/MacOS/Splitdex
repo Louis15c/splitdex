@@ -1,0 +1,43 @@
+#!/bin/bash
+# Splitdex.app — lanceur macOS.
+# Démarre le serveur local (via run.sh) s'il ne tourne pas déjà, attend qu'il
+# réponde, puis ouvre l'application dans Chrome (repli : navigateur par défaut).
+# Lancé depuis le Finder/Dock, l'environnement est minimal : on rétablit un PATH
+# qui inclut Homebrew (Intel /usr/local, Apple Silicon /opt/homebrew).
+
+export PATH="/opt/homebrew/bin:/usr/local/bin:/usr/bin:/bin:/usr/sbin:/sbin:$PATH"
+
+# Le .app est à <racine>/macos/Splitdex.app → la racine du projet est 4 niveaux
+# au-dessus de ce script (MacOS → Contents → Splitdex.app → macos → racine).
+EXEC_DIR="$(cd "$(dirname "$0")" && pwd)"
+PROJECT="$(cd "$EXEC_DIR/../../../.." && pwd)"
+
+if [ ! -f "$PROJECT/run.sh" ]; then
+  osascript -e 'display alert "Splitdex" message "Projet introuvable. Gardez Splitdex.app dans le dossier macos/ du projet."'
+  exit 1
+fi
+
+cd "$PROJECT" || exit 1
+
+URL="http://localhost:8000"
+LOG="$PROJECT/splitdex-server.log"
+
+server_up() { curl -fsS -m 2 "$URL/api/health" >/dev/null 2>&1; }
+
+if ! server_up; then
+  # Premier lancement : run.sh installe les dépendances puis démarre uvicorn.
+  # Détaché, sa sortie va dans le journal.
+  nohup ./run.sh >"$LOG" 2>&1 &
+  for _ in $(seq 1 120); do
+    server_up && break
+    sleep 1
+  done
+fi
+
+if server_up; then
+  open -a "Google Chrome" "$URL" 2>/dev/null || open "$URL"
+else
+  osascript -e 'display alert "Splitdex" message "Le serveur n’a pas démarré à temps. Consultez splitdex-server.log à la racine du projet."'
+  open -t "$LOG" 2>/dev/null || true
+  exit 1
+fi

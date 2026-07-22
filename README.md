@@ -607,6 +607,14 @@ Linux. Rien de spécial à faire, `run.sh` s'en charge.
 lancement (via `torch.hub`, une seule fois, nécessite un accès Internet). Voir
 la section « Repli embeddings » plus haut.
 
+**5. Application Mac (facultatif)** : `macos/Splitdex.app` est un lanceur —
+double-clic → démarre le serveur (via `run.sh`) et ouvre `localhost:8000` dans
+Chrome (repli : navigateur par défaut). Glissez-la dans le **Dock** ou vers
+**Applications** pour un accès en un clic, avec l'icône Pokéball. Comme elle
+n'est pas signée, au **premier** lancement : clic droit → **Ouvrir** (ou
+`xattr -dr com.apple.quarantine macos/Splitdex.app`). Gardez le `.app` dans le
+dossier `macos/` du projet — il repère la racine par sa position.
+
 ### Données : cache de référence, modèle, embeddings
 
 Le dépôt **ne versionne pas** les données volumineuses et régénérables (~3 Go) :
