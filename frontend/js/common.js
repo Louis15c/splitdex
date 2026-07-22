@@ -60,6 +60,7 @@ export function mountNav(active) {
       el("div", { class: "nav-links" }, [
         el("a", { text: "Accueil", class: active === "home" ? "on" : "", attrs: { href: "/" } }),
         el("a", { text: "Historique", class: active === "history" ? "on" : "", attrs: { href: "/history" } }),
+        el("a", { text: "Vinted", class: active === "vinted" ? "on" : "", attrs: { href: "/vinted" } }),
       ]),
     ]),
   ]);

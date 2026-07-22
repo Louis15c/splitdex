@@ -1,0 +1,149 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Vinted — Splitdex</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link href="https://fonts.googleapis.com/css2?family=Fredoka:wght@400;500;600;700&family=Nunito:wght@400;500;600;700&display=swap" rel="stylesheet" />
+  <link rel="stylesheet" href="/static/css/theme.css" />
+  <link rel="icon" href="/static/favicon.svg" type="image/svg+xml" />
+  <link rel="icon" href="/static/favicon-32.png" sizes="32x32" type="image/png" />
+  <link rel="apple-touch-icon" href="/static/apple-touch-icon.png" />
+  <link rel="manifest" href="/static/manifest.webmanifest" />
+  <meta name="theme-color" content="#16141d" />
+  <meta name="apple-mobile-web-app-capable" content="yes" />
+  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
+  <meta name="apple-mobile-web-app-title" content="Splitdex" />
+  <style>
+    .page-head { padding: 34px 0 10px; }
+    .page-head h1 { font-size: 26px; }
+    .page-head p { color: var(--dim); font-weight: 600; margin-top: 6px; max-width: 60ch; }
+
+    .callout { display: flex; gap: 12px; padding: 15px 18px; margin-top: 18px; align-items: flex-start; }
+    .callout .ico { flex-shrink: 0; width: 22px; height: 22px; color: var(--cta); margin-top: 1px; }
+    .callout .ico svg { width: 100%; height: 100%; fill: none; stroke: currentColor; stroke-width: 2; stroke-linecap: round; stroke-linejoin: round; }
+    .callout .t { font-weight: 700; font-size: 14px; line-height: 1.5; }
+    .callout .t b { color: var(--ink); }
+
+    .steps { margin-top: 22px; display: flex; flex-direction: column; gap: 14px; }
+    .step { padding: 18px 20px; display: flex; gap: 16px; }
+    .step .num { flex-shrink: 0; width: 34px; height: 34px; border-radius: 50%; display: grid; place-items: center;
+      font-family: var(--font-head); font-weight: 600; font-size: 16px; color: var(--cta-ink); background: var(--cta); }
+    .step .body { flex: 1; min-width: 0; }
+    .step h3 { font-family: var(--font-head); font-weight: 600; font-size: 17px; }
+    .step p { color: var(--dim); font-weight: 600; font-size: 14px; line-height: 1.55; margin-top: 5px; }
+    .step p a { color: var(--blue); font-weight: 700; text-decoration: none; }
+    .step p a:hover { text-decoration: underline; }
+    .step .btn-row { display: flex; flex-wrap: wrap; gap: 9px; margin-top: 13px; }
+    .btn-ghost { display: inline-flex; align-items: center; gap: 7px; padding: 8px 14px; border-radius: 999px;
+      border: 2px solid var(--border); color: var(--ink); font-weight: 700; font-size: 13px; text-decoration: none; background: var(--card-2); }
+    .btn-ghost:hover { border-color: var(--border-h); }
+    .btn-ghost .b { color: var(--faint); font-size: 12px; }
+    kbd { font-family: var(--font-body); font-weight: 700; background: var(--card-3); border: 1px solid var(--border);
+      border-radius: 6px; padding: 1px 7px; font-size: 12.5px; color: var(--ink); }
+    .pathchip { display: inline-block; font-family: var(--font-body); font-weight: 700; background: var(--card-3);
+      border: 1px solid var(--border); border-radius: 8px; padding: 2px 9px; font-size: 13px; color: var(--mint); }
+
+    details.more { margin-top: 22px; padding: 4px 20px; }
+    details.more > summary { cursor: pointer; font-weight: 700; font-size: 14px; color: var(--dim); list-style: none; padding: 14px 0; }
+    details.more > summary::-webkit-details-marker { display: none; }
+    details.more > summary::before { content: "▸ "; }
+    details.more[open] > summary::before { content: "▾ "; }
+    details.more .inner { padding-bottom: 16px; }
+    details.more p { color: var(--dim); font-weight: 600; font-size: 13.5px; line-height: 1.6; margin-top: 8px; }
+    details.more ul { color: var(--dim); font-weight: 600; font-size: 13.5px; line-height: 1.7; margin: 8px 0 0 18px; }
+    details.more b { color: var(--ink); }
+
+    .dock-note { margin-top: 26px; padding: 18px 20px; }
+    .dock-note h3 { font-family: var(--font-head); font-weight: 600; font-size: 16px; display: flex; align-items: center; gap: 9px; }
+    .dock-note h3 img { width: 26px; height: 26px; border-radius: 7px; }
+    .dock-note p { color: var(--dim); font-weight: 600; font-size: 13.5px; line-height: 1.6; margin-top: 9px; }
+    .dock-note b { color: var(--ink); }
+  </style>
+</head>
+<body>
+  <main class="wrap">
+    <div class="page-head">
+      <h1>Remplir Vinted en un clic</h1>
+      <p>Splitdex prépare vos annonces, puis un petit script remplit le formulaire « Vendre » de Vinted à votre place — titre, description, prix, catégorie, marque, état et taille du colis.</p>
+    </div>
+
+    <div class="clay callout">
+      <span class="ico"><svg viewBox="0 0 24 24"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10Z"/><path d="m9 12 2 2 4-4"/></svg></span>
+      <div class="t"><b>Rien n'est publié automatiquement.</b> Le script ne fait que remplir les champs, comme un copier-coller. Vous relisez, ajoutez les photos, et cliquez vous-même sur « Ajouter ». C'est la règle de Vinted, et c'est plus sûr.</div>
+    </div>
+
+    <div class="steps">
+      <div class="clay step">
+        <div class="num">1</div>
+        <div class="body">
+          <h3>Installer l'extension Tampermonkey</h3>
+          <p>Tampermonkey exécute de petits scripts sur les pages web. Installez-la une fois dans votre navigateur, puis épinglez-la si besoin.</p>
+          <div class="btn-row">
+            <a class="btn-ghost" href="https://apps.apple.com/app/tampermonkey/id1482490089" target="_blank" rel="noopener">Safari <span class="b">Mac App Store</span></a>
+            <a class="btn-ghost" href="https://chromewebstore.google.com/detail/tampermonkey/dhdgffkkebhmkfjojejmpbldmpobfkfo" target="_blank" rel="noopener">Chrome <span class="b">/ Edge / Brave</span></a>
+            <a class="btn-ghost" href="https://addons.mozilla.org/fr/firefox/addon/tampermonkey/" target="_blank" rel="noopener">Firefox</a>
+          </div>
+        </div>
+      </div>
+
+      <div class="clay step">
+        <div class="num">2</div>
+        <div class="body">
+          <h3>Installer le script Splitdex</h3>
+          <p>Cliquez sur le bouton ci-dessous : Tampermonkey ouvre une page d'installation, cliquez alors sur <b>« Installer »</b>. À faire <b>une seule fois</b> — le script se met à jour tout seul ensuite.</p>
+          <div class="btn-row">
+            <a class="btn btn-primary" href="/vinted-autofill.user.js">⤓ Installer le script Splitdex</a>
+          </div>
+          <p style="margin-top:11px">Si la page affiche juste du texte au lieu de proposer l'installation, c'est que Tampermonkey n'est pas encore actif (revenez à l'étape 1).</p>
+        </div>
+      </div>
+
+      <div class="clay step">
+        <div class="num">3</div>
+        <div class="body">
+          <h3>Préparer une fiche dans Splitdex</h3>
+          <p>Sur une carte identifiée (page d'un scan), cliquez sur <b>« Envoyer vers Vinted »</b>. La fiche est mise de côté, prête à être collée dans le formulaire.</p>
+        </div>
+      </div>
+
+      <div class="clay step">
+        <div class="num">4</div>
+        <div class="body">
+          <h3>Ouvrir « Vendre » sur Vinted et remplir</h3>
+          <p>Allez sur <a href="https://www.vinted.fr/items/new" target="_blank" rel="noopener">vinted.fr/items/new</a>. Un bouton <span class="pathchip">📋 Remplir depuis Splitdex</span> apparaît en bas à droite : cliquez dessus. Les champs se remplissent tout seuls.</p>
+        </div>
+      </div>
+
+      <div class="clay step">
+        <div class="num">5</div>
+        <div class="body">
+          <h3>Relire, ajouter les photos, publier</h3>
+          <p>Vérifiez le résultat, ajoutez vos photos (Splitdex ne les met pas), puis cliquez <b>vous-même</b> sur « Ajouter ». Voilà !</p>
+        </div>
+      </div>
+    </div>
+
+    <details class="clay more">
+      <summary>Ça ne marche pas / questions fréquentes</summary>
+      <div class="inner">
+        <p><b>Le bouton n'apparaît pas sur Vinted.</b> Vérifiez que Tampermonkey est activé et que le script Splitdex y figure (icône Tampermonkey → « Tableau de bord »). Le bouton n'apparaît que sur la page <span class="pathchip">/items/new</span>.</p>
+        <p><b>« Splitdex injoignable ».</b> Le serveur Splitdex doit tourner et être joignable depuis le même navigateur — même machine, ou même réseau via son adresse IP. Le script vise l'adresse par laquelle vous avez ouvert cette page.</p>
+        <p><b>Certains champs restent vides.</b> Le script prévient de ce qu'il n'a pas pu remplir (menus Vinted parfois capricieux) — terminez ces champs à la main. Sont pris en charge :</p>
+        <ul>
+          <li>Titre, description, prix</li>
+          <li>Catégorie <b>Cartes à collectionner à l'unité</b></li>
+          <li>Marque <b>Pokémon</b>, état, taille du colis <b>Petit</b></li>
+        </ul>
+      </div>
+    </details>
+
+    <div class="clay dock-note">
+      <h3><img src="/static/apple-touch-icon.png" alt="" />Astuce : Splitdex dans le Dock du Mac</h3>
+      <p>Pour ouvrir Splitdex comme une vraie app : dans <b>Safari</b>, menu <kbd>Fichier</kbd> → <b>« Ajouter au Dock… »</b>. L'icône Pokéball et le nom sont déjà prêts. (Sur Chrome : menu <kbd>⋮</kbd> → <b>Diffuser, enregistrer et partager</b> → <b>Installer la page en tant qu'application</b>.)</p>
+    </div>
+  </main>
+  <script type="module" src="/static/js/vinted.js"></script>
+</body>
+</html>

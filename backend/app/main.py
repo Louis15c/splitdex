@@ -74,6 +74,11 @@ async def history_page():
     return FileResponse(FRONTEND_DIR / "history.html")
 
 
+@app.get("/vinted")
+async def vinted_page():
+    return FileResponse(FRONTEND_DIR / "vinted.html")
+
+
 @app.get("/api/health")
 async def health():
     return {"status": "ok"}

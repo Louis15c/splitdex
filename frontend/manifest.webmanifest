@@ -1,0 +1,16 @@
+{
+  "name": "Splitdex",
+  "short_name": "Splitdex",
+  "description": "Scanner, identifier et vendre vos cartes Pokémon.",
+  "lang": "fr",
+  "start_url": "/",
+  "scope": "/",
+  "display": "standalone",
+  "background_color": "#16141d",
+  "theme_color": "#16141d",
+  "icons": [
+    { "src": "/static/icon-192.png", "sizes": "192x192", "type": "image/png", "purpose": "any" },
+    { "src": "/static/icon-512.png", "sizes": "512x512", "type": "image/png", "purpose": "any" },
+    { "src": "/static/icon-512.png", "sizes": "512x512", "type": "image/png", "purpose": "maskable" }
+  ]
+}
