@@ -8,8 +8,9 @@
 
 </div>
 
-<!-- Remplacez cette image par une capture de l'application (déposez le fichier dans docs/screenshot.png). -->
-![Aperçu de Splitdex](docs/screenshot.png)
+<div align="center">
+  <img src="docs/screenshot.png" width="640" alt="Aperçu de Splitdex" />
+</div>
 
 ---
 
