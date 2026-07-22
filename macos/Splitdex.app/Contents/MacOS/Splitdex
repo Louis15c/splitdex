@@ -7,13 +7,38 @@
 
 export PATH="/opt/homebrew/bin:/usr/local/bin:/usr/bin:/bin:/usr/sbin:/sbin:$PATH"
 
-# Le .app est à <racine>/macos/Splitdex.app → la racine du projet est 4 niveaux
-# au-dessus de ce script (MacOS → Contents → Splitdex.app → macos → racine).
 EXEC_DIR="$(cd "$(dirname "$0")" && pwd)"
-PROJECT="$(cd "$EXEC_DIR/../../../.." && pwd)"
 
-if [ ! -f "$PROJECT/run.sh" ]; then
-  osascript -e 'display alert "Splitdex" message "Projet introuvable. Gardez Splitdex.app dans le dossier macos/ du projet."'
+# Un dossier est la racine du projet s'il contient run.sh ET le backend.
+is_project() { [ -f "$1/run.sh" ] && [ -f "$1/backend/app/main.py" ]; }
+
+# Localise la racine du projet, de la méthode la plus fiable à la plus large :
+find_project() {
+  # 1) Remonter depuis l'emplacement du .app (fonctionne tant que l'app est
+  #    quelque part DANS l'arborescence du projet, à n'importe quelle profondeur).
+  local dir="$EXEC_DIR"
+  while [ -n "$dir" ] && [ "$dir" != "/" ]; do
+    is_project "$dir" && { printf '%s' "$dir"; return 0; }
+    dir="$(dirname "$dir")"
+  done
+  # 2) Emplacements usuels si l'app a été copiée HORS du projet (ex: /Applications).
+  local base
+  for base in "$HOME/splitdex" "$HOME/Splitdex" "$HOME/Downloads/splitdex" \
+              "$HOME/Downloads/splitdex-main" "$HOME/Desktop/splitdex"; do
+    is_project "$base" && { printf '%s' "$base"; return 0; }
+  done
+  # 3) Dernier recours : recherche bornée sous le dossier personnel.
+  local f d
+  while IFS= read -r f; do
+    d="$(dirname "$f")"
+    is_project "$d" && { printf '%s' "$d"; return 0; }
+  done < <(find "$HOME" -maxdepth 4 -name run.sh 2>/dev/null)
+  return 1
+}
+
+PROJECT="$(find_project)"
+if [ -z "$PROJECT" ]; then
+  osascript -e 'display alert "Splitdex" message "Projet Splitdex introuvable. Placez le dossier du projet (celui qui contient run.sh) dans votre dossier personnel, par exemple ~/splitdex, puis relancez."'
   exit 1
 fi
 
