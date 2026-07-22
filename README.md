@@ -597,6 +597,12 @@ sudo apt install -y tesseract-ocr tesseract-ocr-fra tesseract-ocr-jpn \
                     tesseract-ocr-deu tesseract-ocr-spa tesseract-ocr-ita
 ```
 
+> 💡 **Installation automatique (macOS)** : les étapes 1 et 2 sont facultatives
+> si Homebrew est présent — `run.sh` installe tout seul `python@3.12` et
+> `tesseract`/`tesseract-lang` s'ils manquent. (`requirements.txt` ne peut, lui,
+> contenir que des paquets pip ; Python et Tesseract sont des dépendances
+> système.) Sur Linux, l'installation apt reste manuelle (elle exige `sudo`).
+
 **3. Lancer** — `./run.sh` crée le venv, installe les dépendances Python
 (`backend/requirements.txt`) et démarre le serveur. **Note torch/PyTorch** :
 sur macOS, `pip` installe automatiquement la roue standard (avec support MPS) —

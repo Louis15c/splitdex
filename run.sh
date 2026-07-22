@@ -40,6 +40,49 @@ sys.exit(0 if (3, 10) <= sys.version_info[:2] <= (3, 12) else 1)
 PY
 }
 
+# ── Dépendances système (hors pip) ────────────────────────────────────────
+# requirements.txt ne gère que les paquets Python. Python lui-même et Tesseract
+# (OCR + packs de langue, indispensables à la détection de langue) relèvent du
+# gestionnaire système. Sur macOS avec Homebrew, on les installe automatiquement
+# s'ils manquent ; sur Linux on affiche la commande apt (installation manuelle,
+# car elle exige sudo).
+ensure_python() {
+  pick_python >/dev/null 2>&1 && return 0
+  if command -v brew >/dev/null 2>&1; then
+    echo "Python 3.10–3.12 introuvable — installation de python@3.12 via Homebrew..."
+    brew install python@3.12 || true
+  fi
+  pick_python >/dev/null 2>&1
+}
+
+tesseract_ready() {
+  command -v tesseract >/dev/null 2>&1 || return 1
+  # Le pack français doit être présent, sinon les packs de langue manquent.
+  tesseract --list-langs 2>/dev/null | grep -qx fra
+}
+
+ensure_tesseract() {
+  tesseract_ready && return 0
+  if command -v brew >/dev/null 2>&1; then
+    echo "Tesseract (ou ses packs de langue) manquant — installation via Homebrew..."
+    brew install tesseract tesseract-lang || \
+      echo "⚠️  Échec de l'installation de Tesseract — la détection de langue sera désactivée." >&2
+  else
+    echo "⚠️  Tesseract absent : la détection de langue sera désactivée (le reste fonctionne)." >&2
+    echo "    Linux : sudo apt install -y tesseract-ocr tesseract-ocr-fra tesseract-ocr-jpn \\" >&2
+    echo "                                tesseract-ocr-deu tesseract-ocr-spa tesseract-ocr-ita" >&2
+  fi
+}
+
+# Garantir Python AVANT de créer le venv ; Tesseract est optionnel (non bloquant).
+if ! ensure_python; then
+  echo "ERREUR : aucun Python compatible (3.10–3.12) trouvé, installation auto impossible." >&2
+  echo "Installez-le :  macOS  brew install python@3.12   |   Linux  apt install python3 python3-venv" >&2
+  echo "(Détecté : $(python3 --version 2>&1 || echo 'python3 absent'))" >&2
+  exit 1
+fi
+ensure_tesseract || true
+
 if [ -d "$VENV_DIR" ] && ! venv_is_compatible; then
   echo "Environnement virtuel existant incompatible (mauvaise version de Python) — recréation..."
   rm -rf "$VENV_DIR"
