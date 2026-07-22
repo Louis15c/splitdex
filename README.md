@@ -576,16 +576,17 @@ modification n'est nécessaire pour passer de la VM Linux au MacBook. Sur Apple
 Silicon (M1/M2/M3), le GPU intégré **MPS** est utilisé tout seul pour YOLO
 (détection) et DINOv2 (embeddings) ; sur Linux/CPU, tout retombe sur le CPU.
 
-**1. Python 3.10 → 3.13** (Sequoia : installer via [Homebrew](https://brew.sh)
+**1. Python 3.10 → 3.12** (Sequoia : installer via [Homebrew](https://brew.sh)
 plutôt que le Python système) :
 ```bash
 brew install python@3.12        # macOS
 # Linux Debian/Ubuntu : sudo apt install python3 python3-venv
 ```
-> ⚠️ **Pas Python 3.14** : trop récent, PyTorch et numpy n'ont pas encore de
-> binaires pour cette version et l'installation échoue. `run.sh` détecte
-> automatiquement un `python3.12`/`3.11`/`3.13` installé et l'utilise, même si
-> `python3` par défaut pointe vers 3.14.
+> ⚠️ **Pas Python 3.13 ni 3.14** : trop récents. numpy 1.26 (requis pour le
+> PyTorch de Mac Intel, cf. `requirements.txt`) n'a pas de binaire au-delà de
+> 3.12, et 3.14 n'a de wheels pour presque rien. `run.sh` détecte
+> automatiquement un `python3.12`/`3.11`/`3.10` installé et l'utilise, même si
+> `python3` par défaut pointe vers une version non supportée (3.9 système ou 3.14).
 
 **2. Tesseract** (OCR — langues + numéros/noms de cartes) :
 ```bash

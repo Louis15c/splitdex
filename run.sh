@@ -8,17 +8,19 @@ PORT="8000"
 
 # Sélection d'un interpréteur Python compatible.
 # PyTorch, numpy & co. ne publient leurs binaires (« wheels ») que pour des
-# versions stabilisées : à ce jour 3.10 → 3.13. Python 3.14 (trop récent) fait
-# échouer `pip install` faute de wheels. On cherche donc un `python3.X` supporté,
-# en préférant 3.12 (le plus éprouvé), avant de retomber sur `python3` générique.
+# versions stabilisées. On vise 3.10 → 3.12 : borne haute fixée par numpy 1.26
+# (requis pour le torch de Mac Intel, cf. requirements.txt) qui n'a pas de wheel
+# pour 3.13, et borne basse par les dépendances. Python 3.13/3.14 (trop récents)
+# font échouer `pip install`. On cherche un `python3.X` supporté, en préférant
+# 3.12 (le plus éprouvé), avant de retomber sur `python3` générique.
 pick_python() {
-  # Un candidat convient si 3.10 <= version <= 3.13.
+  # Un candidat convient si 3.10 <= version <= 3.12.
   local candidate
-  for candidate in python3.12 python3.11 python3.13 python3.10 python3 python; do
+  for candidate in python3.12 python3.11 python3.10 python3 python; do
     command -v "$candidate" >/dev/null 2>&1 || continue
     if "$candidate" - <<'PY' >/dev/null 2>&1
 import sys
-sys.exit(0 if (3, 10) <= sys.version_info[:2] <= (3, 13) else 1)
+sys.exit(0 if (3, 10) <= sys.version_info[:2] <= (3, 12) else 1)
 PY
     then
       printf '%s' "$candidate"
@@ -34,7 +36,7 @@ venv_is_compatible() {
   [ -x "$VENV_DIR/bin/python" ] || return 1
   "$VENV_DIR/bin/python" - <<'PY' >/dev/null 2>&1
 import sys
-sys.exit(0 if (3, 10) <= sys.version_info[:2] <= (3, 13) else 1)
+sys.exit(0 if (3, 10) <= sys.version_info[:2] <= (3, 12) else 1)
 PY
 }
 
@@ -45,8 +47,8 @@ fi
 
 if [ ! -d "$VENV_DIR" ]; then
   PYTHON_BIN="$(pick_python)" || {
-    echo "ERREUR : aucun Python compatible (3.10–3.13) trouvé." >&2
-    echo "Python 3.14 est trop récent — PyTorch/numpy n'ont pas encore de binaires." >&2
+    echo "ERREUR : aucun Python compatible (3.10–3.12) trouvé." >&2
+    echo "Python 3.13/3.14 sont trop récents — numpy 1.26 (requis) n'a pas de binaires." >&2
     echo "Sur macOS :  brew install python@3.12   puis relancez ./run.sh" >&2
     echo "(Détecté : $(python3 --version 2>&1))" >&2
     exit 1
