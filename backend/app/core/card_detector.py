@@ -119,6 +119,11 @@ def _is_single_card_frame(image: np.ndarray, cards: list[DetectedCard]) -> bool:
     un scan/visuel plein cadre (carte à l'unité), sur lequel YOLO — entraîné à
     trouver des cartes SUR un fond — s'accroche à un petit motif interne (badge
     Niveau, symbole) au lieu de la carte entière."""
+    # Plusieurs cartes détectées = une planche : jamais une carte unique, même
+    # si la photo a par hasard un ratio proche d'une carte (constaté : planche
+    # 20 cartes en 3024x4032 -> ratio 0,75 -> réduite à tort à une seule carte).
+    if len(cards) > 1:
+        return False
     if not _is_card_shaped(image):
         return False
     image_area = image.shape[0] * image.shape[1]
