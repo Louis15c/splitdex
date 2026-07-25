@@ -1,15 +1,16 @@
 import json
 import os
-from concurrent.futures import ThreadPoolExecutor
+from concurrent.futures import ThreadPoolExecutor, as_completed
 from datetime import datetime, timezone
 
 import cv2
 from fastapi import APIRouter, HTTPException
+from fastapi.responses import StreamingResponse
 
 from app.core.card_detector import extract_card_native
 from app.core.card_identifier import MatchCandidate, load_reference_index
 from app.core.config import CROPS_DIR, UPLOADS_DIR
-from app.core.db import db_cursor
+from app.core.db import db_cursor, get_connection
 from app.core.language_detector import detect_language, ocr_text
 from app.core.card_translations import translate_set_name
 from app.core.pokemon_names_fr import translate_card_name_to_fr
@@ -189,6 +190,132 @@ def identify_cards(photo_id: str):
             )
 
     return results
+
+
+_INSERT_IDENTIFICATION_SQL = """
+    INSERT INTO identifications
+        (photo_id, crop_filename, card_id, orb_score, candidates_json, language, created_at)
+    VALUES (?, ?, ?, ?, ?, ?, ?)
+    ON CONFLICT(photo_id, crop_filename) DO UPDATE SET
+        card_id=excluded.card_id, orb_score=excluded.orb_score,
+        candidates_json=excluded.candidates_json, language=excluded.language,
+        created_at=excluded.created_at
+"""
+
+
+def _identification_payload(crop: dict, result) -> dict:
+    """Forme JSON d'une carte identifiée (même contenu que /identify)."""
+    if result is None:
+        return {
+            "type": "card", "crop_filename": crop["filename"], "crop_index": crop["index"],
+            "best_match": None, "confident": False, "candidates": [], "language": None,
+        }
+    candidates = [_serialize_candidate(c) for c in result.candidates]
+    best = result.candidates[0] if result.candidates else None
+    return {
+        "type": "card",
+        "crop_filename": crop["filename"],
+        "crop_index": crop["index"],
+        "best_match": candidates[0] if candidates else None,
+        "confident": best is not None and best.orb_score >= CONFIDENT_ORB_SCORE,
+        "candidates": candidates,
+        "language": result.language,
+    }
+
+
+def _write_identification(conn, photo_id: str, crop: dict, result) -> None:
+    candidates = [_serialize_candidate(c) for c in result.candidates] if result else []
+    best = result.candidates[0] if (result and result.candidates) else None
+    conn.execute(
+        _INSERT_IDENTIFICATION_SQL,
+        (
+            photo_id, crop["filename"],
+            best.card_id if best else None,
+            best.orb_score if best else None,
+            json.dumps(candidates),
+            result.language if result else None,
+            datetime.now(timezone.utc).isoformat(),
+        ),
+    )
+    conn.commit()
+
+
+@router.post("/{photo_id}/identify/stream")
+def identify_cards_stream(photo_id: str):
+    """Identifie les cartes en flux NDJSON : émet chaque carte dès qu'elle est
+    prête (au lieu d'attendre toute la photo), puis, une fois tout identifié, un
+    correctif de langue par vote majoritaire. Traitement et précision
+    identiques à /identify — seule la restitution est progressive."""
+    validate_photo_id(photo_id)
+    meta_path = _crops_meta_path(photo_id)
+    if not meta_path.exists():
+        raise HTTPException(
+            status_code=404,
+            detail="Aucun crop trouvé pour cette photo. Lance d'abord la découpe des cartes.",
+        )
+    crops = json.loads(meta_path.read_text())
+    index = load_reference_index()
+    if index.is_empty():
+        raise HTTPException(
+            status_code=503,
+            detail=(
+                "Le cache local de cartes de référence est vide. Lance d'abord la synchronisation "
+                "pokemontcg.io : backend/app/scripts/sync_cards.py"
+            ),
+        )
+
+    photo_crop_dir = _crops_dir(photo_id)
+    original_photo = None
+    for candidate in UPLOADS_DIR.glob(f"{photo_id}.*"):
+        if candidate.is_file():
+            original_photo = cv2.imread(str(candidate))
+            break
+
+    def _identify_crop(crop):
+        crop_path = photo_crop_dir / crop["filename"]
+        image = cv2.imread(str(crop_path))
+        if image is None:
+            return crop, None
+        ocr_source = image
+        if original_photo is not None and crop.get("corners"):
+            try:
+                ocr_source = extract_card_native(original_photo, crop["corners"])
+            except Exception:
+                ocr_source = image
+        text = ocr_text(ocr_source)
+        language = detect_language(ocr_source, text=text)
+        return crop, index.identify(image, top_k=TOP_K, language=language, text=text)
+
+    def generate():
+        if not crops:
+            return
+        conn = get_connection()
+        try:
+            identified = []
+            with ThreadPoolExecutor(max_workers=IDENTIFY_WORKERS) as executor:
+                futures = [executor.submit(_identify_crop, crop) for crop in crops]
+                for future in as_completed(futures):
+                    crop, result = future.result()
+                    identified.append((crop, result))
+                    if result is not None:
+                        _write_identification(conn, photo_id, crop, result)
+                    yield json.dumps(_identification_payload(crop, result), ensure_ascii=False) + "\n"
+
+            # Vote majoritaire : peut remplir des langues restées indéterminées.
+            before = {id(result): (result.language if result else None) for _, result in identified}
+            _fill_language_by_majority(identified)
+            for crop, result in identified:
+                if result is not None and result.language != before[id(result)]:
+                    _write_identification(conn, photo_id, crop, result)
+                    yield json.dumps(
+                        {"type": "language", "crop_filename": crop["filename"], "language": result.language},
+                        ensure_ascii=False,
+                    ) + "\n"
+        finally:
+            conn.close()
+        yield json.dumps({"type": "done"}, ensure_ascii=False) + "\n"
+
+    return StreamingResponse(generate(), media_type="application/x-ndjson")
 
 
 @router.get("/{photo_id}/identify")

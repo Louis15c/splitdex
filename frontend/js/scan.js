@@ -227,9 +227,21 @@ async function processPhotos(photoIds, force = false) {
       for (const crop of state.crops) blocks.get(`${photoId}|${crop.filename}`)?.setLoading(true);
       try {
         if (force || !state.identified) {
-          const idents = await api.runIdentify(photoId, scanAbort.signal);
+          // Flux : chaque carte s'affiche dès qu'elle est identifiée, sans
+          // attendre toute la photo. Le correctif de langue (vote majoritaire)
+          // arrive en fin de flux.
+          await api.streamIdentify(photoId, scanAbort.signal, (ev) => {
+            if (ev.type === "card") {
+              applyIdentification(photoId, ev);
+              cardsDone += 1;
+              headerEls.procLabel.textContent = `Scan des cartes en cours… ${cardsDone}/${totalCards}${photoInfo}`;
+            } else if (ev.type === "language") {
+              applyLanguageUpdate(photoId, ev);
+            }
+          });
           state.identified = true;
-          for (const ident of idents) applyIdentification(photoId, ident);
+        } else {
+          cardsDone += state.crops.length;
         }
         const listings = await api.generateListings(photoId, scanAbort.signal);
         state.listed = true;
@@ -239,7 +251,6 @@ async function processPhotos(photoIds, force = false) {
         console.error("Traitement photo échoué", photoId, err);
       }
       clearLoadingForPhoto(photoId);
-      cardsDone += state.crops.length;
       headerEls.procLabel.textContent = `Scan des cartes en cours… ${cardsDone}/${totalCards}`;
     }
   } finally {
@@ -266,6 +277,10 @@ function applyIdentification(photoId, ident) {
 function applyListing(photoId, listing) {
   const block = blocks.get(`${photoId}|${listing.crop_filename}`);
   if (block) block.setListing(listing);
+}
+function applyLanguageUpdate(photoId, ev) {
+  const block = blocks.get(`${photoId}|${ev.crop_filename}`);
+  if (block) block.setLanguage(ev.language);
 }
 
 /* Résumé de session (pour l'accueil + l'historique). */
@@ -506,6 +521,7 @@ function makeCardBlock(photoId, crop) {
   function setIdentification(ident) { identification = ident; render(); }
   function setListing(l) { listing = l; loading = false; render(); }
   function setLoading(v) { loading = v; render(); }
+  function setLanguage(lang) { if (identification) { identification.language = lang; render(); } }
 
   render();
   return {
@@ -513,6 +529,7 @@ function makeCardBlock(photoId, crop) {
     setIdentification,
     setListing,
     setLoading,
+    setLanguage,
     hasListing: () => Boolean(listing),
     hasCard: state.hasCard,
     currentLanguage: state.currentLanguage,

@@ -196,6 +196,8 @@ def ocr_text(image_bgr: np.ndarray) -> str:
     latin_languages = [lang for lang in available if lang != "jpn"]
     passes = []
 
+    # Les deux passes standard latines décident la grande majorité des cartes.
+    latin_decisive = False
     if latin_languages:
         latin_spec = "+".join(latin_languages)
         try:
@@ -207,20 +209,27 @@ def ocr_text(image_bgr: np.ndarray) -> str:
             passes.append(pytesseract.image_to_string(sharp, lang=latin_spec, config="--psm 6"))
         except Exception:
             pass
-
-        # Sauvetage conditionnel (voir _adaptive_binarized) : uniquement si
-        # les deux passes standard laissent la langue indécidable — les
-        # cartes bien lues ne paient pas cette passe supplémentaire.
         latin_scores = _vocabulary_scores("\n".join(passes))
         top_latin = max((score for score, _ in latin_scores.values()), default=0)
-        if top_latin < RESCUE_MIN_TOP_SCORE:
-            try:
-                binarized = Image.fromarray(_adaptive_binarized(image_bgr))
-                passes.append(pytesseract.image_to_string(binarized, lang=latin_spec, config="--psm 6"))
-            except Exception:
-                pass
+        latin_decisive = top_latin >= RESCUE_MIN_TOP_SCORE
 
-    if "jpn" in available:
+    # Passes coûteuses supplémentaires (binarisation de sauvetage + japonais)
+    # UNIQUEMENT quand le latin ne tranche pas franchement. Une carte latine
+    # nette est déjà décidée : inutile de payer la passe japonaise (~une passe
+    # OCR entière, soit ~2s) sur chaque carte française/anglaise — c'est le cas
+    # courant. Une vraie carte japonaise donne un score latin faible (kana
+    # illisibles en latin) et déclenche donc bien la passe `jpn`.
+    if latin_languages and not latin_decisive:
+        # Sauvetage : texte imprimé sur bande colorée écrasé en niveaux de gris
+        # (voir _adaptive_binarized).
+        try:
+            binarized = Image.fromarray(_adaptive_binarized(image_bgr))
+            passes.append(pytesseract.image_to_string(binarized, lang=latin_spec, config="--psm 6"))
+        except Exception:
+            pass
+
+    if "jpn" in available and not latin_decisive:
+        # Sert aux indices de nom d'espèce japonais (name_detector).
         try:
             passes.append(pytesseract.image_to_string(pil_image, lang="jpn", config="--psm 11"))
         except Exception:

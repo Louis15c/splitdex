@@ -33,6 +33,36 @@ export async function runIdentify(photoId, signal) {
   return jsonOrThrow(response, "Échec de l'identification");
 }
 
+/** Identification en flux : `onEvent` est appelé pour chaque ligne NDJSON
+ *  ({type:"card"|"language"|"done", ...}) dès qu'elle arrive du serveur, pour
+ *  afficher les cartes une à une sans attendre la fin. */
+export async function streamIdentify(photoId, signal, onEvent) {
+  const response = await fetch(`/api/photos/${photoId}/identify/stream`, { method: "POST", signal });
+  if (!response.ok) {
+    const data = await response.json().catch(() => ({}));
+    throw new Error(data.detail || "Échec de l'identification");
+  }
+  const reader = response.body.getReader();
+  const decoder = new TextDecoder();
+  let buffer = "";
+  const flush = (final) => {
+    let nl;
+    while ((nl = buffer.indexOf("\n")) >= 0) {
+      const line = buffer.slice(0, nl).trim();
+      buffer = buffer.slice(nl + 1);
+      if (line) onEvent(JSON.parse(line));
+    }
+    if (final && buffer.trim()) onEvent(JSON.parse(buffer.trim()));
+  };
+  while (true) {
+    const { done, value } = await reader.read();
+    if (done) break;
+    buffer += decoder.decode(value, { stream: true });
+    flush(false);
+  }
+  flush(true);
+}
+
 export async function getListings(photoId) {
   const response = await fetch(`/api/photos/${photoId}/listings`);
   return jsonOrThrow(response, "Fiches indisponibles");
