@@ -48,28 +48,41 @@ COMMON_RARITIES = {"common", "uncommon"}
 
 @dataclass
 class PriceEstimate:
-    avg: float | None
-    low: float | None
-    trend: float | None
+    suggested: float | None  # prix conseillé (pré-rempli) : trend > avg30 > avg7 > avg
+    trend: float | None      # "prix du marché" Cardmarket (estimation actuelle)
+    avg30: float | None      # moyenne des ventes sur 30 jours
+    avg: float | None        # moyenne (long terme, peut être décalée)
+    low: float | None        # plus bas en vente (souvent une carte abîmée, indicatif)
     currency: str
     source_language: str  # locale TCGdex dont provient le prix ("fr", "ja", "en"...)
     note: str | None = None  # avertissement à afficher si repli ou donnée incertaine
 
 
 def _pick_prices(cardmarket: dict, rarity: str | None) -> dict:
-    """Prix normal ou holo selon la rareté (voir docstring du module)."""
+    """Prix normal ou holo selon la rareté (voir docstring du module).
+
+    On privilégie `trend` (estimation du prix marché actuel de Cardmarket) plutôt
+    que `avg` (moyenne, tirée par d'anciennes ventes) : c'est la référence la plus
+    juste pour fixer un prix. `avg30` sert de repli récent, `avg` de dernier repli.
+    """
     is_special = rarity is not None and rarity.lower() not in COMMON_RARITIES
-    if is_special and cardmarket.get("avg-holo") is not None:
-        return {
-            "avg": cardmarket.get("avg-holo"),
-            "low": cardmarket.get("low-holo"),
-            "trend": cardmarket.get("trend-holo"),
-        }
-    return {
-        "avg": cardmarket.get("avg"),
-        "low": cardmarket.get("low"),
-        "trend": cardmarket.get("trend"),
+    suffix = "-holo" if (is_special and cardmarket.get("avg-holo") is not None) else ""
+
+    def field(key):
+        return cardmarket.get(key + suffix)
+
+    prices = {
+        "trend": field("trend"),
+        "avg30": field("avg30"),
+        "avg7": field("avg7"),
+        "avg": field("avg"),
+        "low": field("low"),
     }
+    # Prix conseillé : premier champ non nul et > 0, du plus pertinent au moins.
+    prices["suggested"] = next(
+        (prices[k] for k in ("trend", "avg30", "avg7", "avg") if prices.get(k)), None
+    )
+    return prices
 
 
 def _lookup(name: str, number: str, locale: str, name_table: dict | None) -> dict | None:
@@ -119,15 +132,23 @@ def _estimate_price_uncached(
 ) -> PriceEstimate | None:
     locale, name_table = LOCALE_BY_LANGUAGE.get(language, ("en", None))
 
+    def build(picked: dict, unit: str, source: str, note: str | None = None) -> PriceEstimate:
+        return PriceEstimate(
+            suggested=picked["suggested"],
+            trend=picked["trend"],
+            avg30=picked["avg30"],
+            avg=picked["avg"],
+            low=picked["low"],
+            currency=unit,
+            source_language=source,
+            note=note,
+        )
+
     prices = _lookup(name, number, locale, name_table)
     if prices is not None:
         picked = _pick_prices(prices, rarity)
-        if picked["avg"] is not None:
-            return PriceEstimate(
-                **picked,
-                currency=prices.get("unit", "EUR"),
-                source_language=locale,
-            )
+        if picked["suggested"] is not None:
+            return build(picked, prices.get("unit", "EUR"), locale)
 
     if locale == "en":
         return None
@@ -137,14 +158,14 @@ def _estimate_price_uncached(
     if fallback_prices is None:
         return None
     picked = _pick_prices(fallback_prices, rarity)
-    if picked["avg"] is None:
+    if picked["suggested"] is None:
         return None
-    return PriceEstimate(
-        **picked,
-        currency=fallback_prices.get("unit", "EUR"),
-        source_language="en",
+    return build(
+        picked,
+        fallback_prices.get("unit", "EUR"),
+        "en",
         note=(
-            f"Cote introuvable dans la langue de la carte — prix de l'édition anglaise "
-            f"affiché à la place, la cote réelle peut fortement différer."
+            "Cote introuvable dans la langue de la carte — prix de l'édition anglaise "
+            "affiché à la place, la cote réelle peut fortement différer."
         ),
     )

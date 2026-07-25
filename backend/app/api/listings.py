@@ -246,9 +246,11 @@ def get_price_estimate(photo_id: str, crop_filename: str):
         )
 
     return {
+        "suggested": estimate.suggested,
+        "trend": estimate.trend,
+        "avg30": estimate.avg30,
         "avg": estimate.avg,
         "low": estimate.low,
-        "trend": estimate.trend,
         "currency": estimate.currency,
         "source_language": estimate.source_language,
         "note": estimate.note,

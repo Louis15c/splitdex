@@ -352,13 +352,14 @@ function makeCardBlock(photoId, crop) {
       estimateBtn.disabled = true; priceNote.textContent = "…"; priceNote.classList.remove("warn");
       try {
         const est = await api.fetchPriceEstimate(photoId, crop.filename);
-        const parts = [`~${est.avg}${est.currency === "EUR" ? "€" : " " + est.currency}`];
-        if (est.low != null) parts.push(`min ${est.low}€`);
+        const unit = est.currency === "EUR" ? "€" : " " + est.currency;
+        const parts = [`~${est.suggested}${unit}`];
         if (est.trend != null) parts.push(`tendance ${est.trend}€`);
+        if (est.avg30 != null) parts.push(`moy 30j ${est.avg30}€`);
         parts.push(`(cote ${est.source_language})`);
         priceNote.textContent = parts.join(" · ");
         if (est.note) priceNote.classList.add("warn");
-        if (est.avg != null) { priceInput.value = est.avg; await save({ price: est.avg }); listing.price = est.avg; }
+        if (est.suggested != null) { priceInput.value = est.suggested; await save({ price: est.suggested }); listing.price = est.suggested; }
       } catch (err) {
         priceNote.textContent = err.message; priceNote.classList.add("warn");
       } finally { estimateBtn.disabled = false; }
