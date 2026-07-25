@@ -28,8 +28,8 @@ export async function getIdentifications(photoId) {
   return jsonOrThrow(response, "Identifications indisponibles");
 }
 
-export async function runIdentify(photoId) {
-  const response = await fetch(`/api/photos/${photoId}/identify`, { method: "POST" });
+export async function runIdentify(photoId, signal) {
+  const response = await fetch(`/api/photos/${photoId}/identify`, { method: "POST", signal });
   return jsonOrThrow(response, "Échec de l'identification");
 }
 
@@ -38,8 +38,8 @@ export async function getListings(photoId) {
   return jsonOrThrow(response, "Fiches indisponibles");
 }
 
-export async function generateListings(photoId) {
-  const response = await fetch(`/api/photos/${photoId}/listings/generate`, { method: "POST" });
+export async function generateListings(photoId, signal) {
+  const response = await fetch(`/api/photos/${photoId}/listings/generate`, { method: "POST", signal });
   return jsonOrThrow(response, "Échec de la génération");
 }
 

@@ -11,6 +11,8 @@ const root = document.getElementById("session-root");
 
 let conditions = ["Très bon état"];
 let processing = false;
+let cancelRequested = false;
+let scanAbort = null; // AbortController du scan en cours (pour l'annulation)
 
 /* Registre des blocs-carte, clé `${photoId}|${filename}` → CardBlock. */
 const blocks = new Map();
@@ -98,8 +100,14 @@ function renderHeader() {
   const procLabel = el("span", { text: "" });
   const procFill = el("div", { class: "fill" });
   const procBar = el("div", { class: "progress" }, [procFill]);
+  const stopBtn = el("button", {
+    class: "btn btn-sm btn-stop",
+    text: "Arrêter",
+    attrs: { title: "Interrompre le scan en cours" },
+    on: { click: cancelScan },
+  });
   const procWrap = el("div", { class: "proc hidden" }, [
-    el("div", { class: "lbl" }, [el("div", { class: "spinner" }), procLabel]),
+    el("div", { class: "lbl" }, [el("div", { class: "spinner" }), procLabel, stopBtn]),
     procBar,
   ]);
 
@@ -134,7 +142,18 @@ function renderHeader() {
     procWrap,
   ]);
   root.append(head);
-  return { procWrap, procBar, procLabel, procFill, reprocessBtn, exportBtn };
+  return { procWrap, procBar, procLabel, procFill, reprocessBtn, exportBtn, stopBtn };
+}
+
+// Interrompt le scan en cours : coupe la requête réseau en vol et empêche le
+// lancement des photos suivantes. Le nettoyage est fait par le `finally` de
+// processPhotos.
+function cancelScan() {
+  if (!processing) return;
+  cancelRequested = true;
+  scanAbort?.abort();
+  headerEls.stopBtn.disabled = true;
+  headerEls.procLabel.textContent = "Arrêt du scan…";
 }
 
 async function startNewScan(fileList, button) {
@@ -186,42 +205,58 @@ function appendPhotoCards(grid, photoId, index, crops) {
 async function processPhotos(photoIds, force = false) {
   if (processing) return;
   processing = true;
+  cancelRequested = false;
+  scanAbort = new AbortController();
   headerEls.reprocessBtn.disabled = true;
+  headerEls.stopBtn.disabled = false;
   headerEls.procWrap.classList.remove("hidden");
   headerEls.procBar.classList.add("indet"); // animation continue tant que ça scanne
 
   const targets = force ? photoIds : photoIds.filter((id) => !photoState.get(id).listed);
   const totalCards = targets.reduce((n, id) => n + photoState.get(id).crops.length, 0);
   let cardsDone = 0;
-  for (let i = 0; i < targets.length; i++) {
-    const photoId = targets[i];
-    const state = photoState.get(photoId);
-    const photoInfo = targets.length > 1 ? ` · photo ${i + 1}/${targets.length}` : "";
-    headerEls.procLabel.textContent = `Scan des cartes en cours… ${cardsDone}/${totalCards}${photoInfo}`;
-    // Les cartes de cette photo passent (ou restent) en « scan en cours ».
-    for (const crop of state.crops) blocks.get(`${photoId}|${crop.filename}`)?.setLoading(true);
-    try {
-      if (force || !state.identified) {
-        const idents = await api.runIdentify(photoId);
-        state.identified = true;
-        for (const ident of idents) applyIdentification(photoId, ident);
+  let stopped = false;
+  try {
+    for (let i = 0; i < targets.length; i++) {
+      if (cancelRequested) { stopped = true; break; }
+      const photoId = targets[i];
+      const state = photoState.get(photoId);
+      const photoInfo = targets.length > 1 ? ` · photo ${i + 1}/${targets.length}` : "";
+      headerEls.procLabel.textContent = `Scan des cartes en cours… ${cardsDone}/${totalCards}${photoInfo}`;
+      // Les cartes de cette photo passent (ou restent) en « scan en cours ».
+      for (const crop of state.crops) blocks.get(`${photoId}|${crop.filename}`)?.setLoading(true);
+      try {
+        if (force || !state.identified) {
+          const idents = await api.runIdentify(photoId, scanAbort.signal);
+          state.identified = true;
+          for (const ident of idents) applyIdentification(photoId, ident);
+        }
+        const listings = await api.generateListings(photoId, scanAbort.signal);
+        state.listed = true;
+        for (const listing of listings) applyListing(photoId, listing);
+      } catch (err) {
+        if (err.name === "AbortError" || cancelRequested) { stopped = true; break; }
+        console.error("Traitement photo échoué", photoId, err);
       }
-      const listings = await api.generateListings(photoId);
-      state.listed = true;
-      for (const listing of listings) applyListing(photoId, listing);
-    } catch (err) {
-      console.error("Traitement photo échoué", photoId, err);
+      clearLoadingForPhoto(photoId);
+      cardsDone += state.crops.length;
+      headerEls.procLabel.textContent = `Scan des cartes en cours… ${cardsDone}/${totalCards}`;
     }
-    clearLoadingForPhoto(photoId);
-    cardsDone += state.crops.length;
-    headerEls.procLabel.textContent = `Scan des cartes en cours… ${cardsDone}/${totalCards}`;
+  } finally {
+    // Coupe les spinners des cartes non abouties (photos restantes ou scan
+    // interrompu en plein milieu).
+    for (const block of blocks.values()) if (!block.hasListing()) block.setLoading(false);
+    headerEls.procBar.classList.remove("indet");
+    headerEls.procWrap.classList.add("hidden");
+    headerEls.reprocessBtn.disabled = false;
+    headerEls.stopBtn.disabled = false;
+    scanAbort = null;
+    processing = false;
+    updateSessionSummary();
+    if (stopped) {
+      headerEls.procLabel.textContent = "";
+    }
   }
-
-  headerEls.procBar.classList.remove("indet");
-  headerEls.procWrap.classList.add("hidden");
-  headerEls.reprocessBtn.disabled = false;
-  processing = false;
-  updateSessionSummary();
 }
 
 function applyIdentification(photoId, ident) {
