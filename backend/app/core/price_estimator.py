@@ -85,14 +85,21 @@ def _pick_prices(cardmarket: dict, rarity: str | None) -> dict:
     return prices
 
 
-def _lookup(name: str, number: str, locale: str, name_table: dict | None) -> dict | None:
+def _lookup(
+    name: str,
+    number: str,
+    locale: str,
+    name_table: dict | None,
+    card_id: str | None = None,
+    set_id: str | None = None,
+) -> dict | None:
     """Cherche la carte dans le catalogue `locale` et retourne son bloc de
     prix Cardmarket, ou `None` (carte absente, nom intraduisible, pas de prix).
     """
     localized_name = name_table.get(name) if name_table is not None else name
     if not localized_name:
         return None
-    card = find_card(localized_name, number, locale=locale)
+    card = find_card(localized_name, number, locale=locale, card_id=card_id, set_id=set_id)
     if not card:
         return None
     return card.get("pricing", {}).get("cardmarket")
@@ -107,19 +114,25 @@ MAX_CACHED_ESTIMATES = 512
 
 
 def estimate_price(
-    name: str, number: str, language: str | None, rarity: str | None = None
+    name: str,
+    number: str,
+    language: str | None,
+    rarity: str | None = None,
+    card_id: str | None = None,
+    set_id: str | None = None,
 ) -> PriceEstimate | None:
     """Retourne l'estimation de prix pour la carte dans sa langue, ou `None`
     si introuvable partout (couverture TCGdex partielle sur les sets
-    anciens/obscurs)."""
+    anciens/obscurs). `card_id`/`set_id` (pokemontcg.io) ciblent la carte dans
+    TCGdex sans ambiguïté (voir `tcgdex_client.find_card`)."""
     import time
 
-    cache_key = (name, number, language, rarity)
+    cache_key = (card_id, name, number, language, rarity)
     cached = _estimate_cache.get(cache_key)
     if cached is not None and time.monotonic() - cached[0] < ESTIMATE_CACHE_TTL_SECONDS:
         return cached[1]
 
-    estimate = _estimate_price_uncached(name, number, language, rarity)
+    estimate = _estimate_price_uncached(name, number, language, rarity, card_id, set_id)
 
     if len(_estimate_cache) >= MAX_CACHED_ESTIMATES:
         _estimate_cache.clear()
@@ -128,7 +141,12 @@ def estimate_price(
 
 
 def _estimate_price_uncached(
-    name: str, number: str, language: str | None, rarity: str | None
+    name: str,
+    number: str,
+    language: str | None,
+    rarity: str | None,
+    card_id: str | None = None,
+    set_id: str | None = None,
 ) -> PriceEstimate | None:
     locale, name_table = LOCALE_BY_LANGUAGE.get(language, ("en", None))
 
@@ -144,7 +162,7 @@ def _estimate_price_uncached(
             note=note,
         )
 
-    prices = _lookup(name, number, locale, name_table)
+    prices = _lookup(name, number, locale, name_table, card_id=card_id, set_id=set_id)
     if prices is not None:
         picked = _pick_prices(prices, rarity)
         if picked["suggested"] is not None:
@@ -154,7 +172,7 @@ def _estimate_price_uncached(
         return None
 
     # Catalogue de la langue muet : prix anglais en repli, clairement signalé.
-    fallback_prices = _lookup(name, number, "en", None)
+    fallback_prices = _lookup(name, number, "en", None, card_id=card_id, set_id=set_id)
     if fallback_prices is None:
         return None
     picked = _pick_prices(fallback_prices, rarity)

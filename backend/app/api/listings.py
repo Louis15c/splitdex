@@ -237,7 +237,12 @@ def get_price_estimate(photo_id: str, crop_filename: str):
             raise HTTPException(status_code=404, detail="Carte de référence introuvable.")
 
     estimate = estimate_price(
-        card["name"], card["number"], listing["language"], rarity=card["rarity"]
+        card["name"],
+        card["number"],
+        listing["language"],
+        rarity=card["rarity"],
+        card_id=listing["card_id"],
+        set_id=card["set_id"],
     )
     if estimate is None:
         raise HTTPException(
