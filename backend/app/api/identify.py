@@ -11,6 +11,7 @@ from app.core.card_identifier import MatchCandidate, load_reference_index
 from app.core.config import CROPS_DIR, UPLOADS_DIR
 from app.core.db import db_cursor
 from app.core.language_detector import detect_language, ocr_text
+from app.core.card_translations import translate_set_name
 from app.core.pokemon_names_fr import translate_card_name_to_fr
 from app.core.validation import validate_photo_id
 
@@ -41,7 +42,8 @@ def _serialize_candidate(candidate: MatchCandidate) -> dict:
         # Nom affiché en français (public francophone) ; le card_id reste la
         # référence technique.
         "name": translate_card_name_to_fr(candidate.name),
-        "set_name": candidate.set_name,
+        # Set en français ; set_id dérivé du card_id ("{set_id}-{numéro}").
+        "set_name": translate_set_name(candidate.set_name, candidate.card_id.rsplit("-", 1)[0]),
         "number": candidate.number,
         "rarity": candidate.rarity,
         "image_url": f"/reference-images/{candidate.card_id}.jpg",

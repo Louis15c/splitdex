@@ -78,7 +78,7 @@ def generate_listing_text(
     # visé étant francophone, le nom d'espèce est traduit partout (titre,
     # description, hashtags). Non couvert par la table = reste en anglais.
     name = translate_card_name_to_fr(card.get("name"))
-    set_name_fr = translate_set_name(card.get("set_name"))
+    set_name_fr = translate_set_name(card.get("set_name"), card.get("set_id"))
     series_fr = translate_series(card.get("series"))
     variant = rarity_display(card.get("rarity"))
 

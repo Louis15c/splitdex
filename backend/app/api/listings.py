@@ -11,6 +11,7 @@ from pydantic import BaseModel
 from app.core.config import CROPS_DIR, DEFAULT_LISTING_CONDITION
 from app.core.db import db_cursor
 from app.core.description_generator import generate_listing_text
+from app.core.card_translations import translate_set_name
 from app.core.pokemon_names_fr import translate_card_name_to_fr
 from app.core.price_estimator import estimate_price
 from app.core.validation import validate_crop_filename, validate_photo_id
@@ -33,7 +34,7 @@ def _sanitize_filename(name: str) -> str:
 
 def _get_reference_card(cursor: sqlite3.Cursor, card_id: str) -> sqlite3.Row | None:
     cursor.execute(
-        "SELECT name, set_name, series, number, printed_total, rarity FROM reference_cards WHERE id = ?",
+        "SELECT set_id, name, set_name, series, number, printed_total, rarity FROM reference_cards WHERE id = ?",
         (card_id,),
     )
     return cursor.fetchone()
@@ -45,7 +46,7 @@ def _serialize_listing(cursor: sqlite3.Cursor, row: sqlite3.Row) -> dict:
         "crop_filename": row["crop_filename"],
         "card_id": row["card_id"],
         "card_name": translate_card_name_to_fr(card["name"]) if card else None,
-        "set_name": card["set_name"] if card else None,
+        "set_name": translate_set_name(card["set_name"], card["set_id"]) if card else None,
         "number": card["number"] if card else None,
         "rarity": card["rarity"] if card else None,
         "image_url": f"/reference-images/{row['card_id']}.jpg",
