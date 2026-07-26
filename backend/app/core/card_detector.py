@@ -446,15 +446,23 @@ def _warp_card(image: np.ndarray, corners: np.ndarray) -> np.ndarray:
     return _warp_card_to(image, corners, OUTPUT_WIDTH, OUTPUT_HEIGHT)
 
 
-def extract_card_native(image: np.ndarray, corners) -> np.ndarray:
+def extract_card_native(image: np.ndarray, corners, margin: float = 1.0) -> np.ndarray:
     """Warpe une carte à sa résolution NATIVE dans la photo (au moins la
     taille standard des crops). Le crop sauvegardé passe par un
     rééchantillonnage à 480px + une recompression JPEG — deux dégradations
     qui coûtent cher à l'OCR quand la carte ne fait que ~300px dans la photo
     (mesuré : noms d'attaque lisibles depuis la photo originale, illisibles
     depuis le crop sauvegardé). À utiliser comme source OCR quand la photo
-    originale est encore disponible."""
+    originale est encore disponible.
+
+    `margin` : facteur d'élargissement des coins autour du centre (1.06 =
+    +6%). Les boîtes détectées serrent souvent la carte d'un cheveu et
+    rognent la toute dernière ligne — celle qui porte le NUMÉRO (constaté :
+    "066/217" invisible sans marge, parfaitement lisible avec)."""
     pts = np.array(corners, dtype="float32")
+    if margin != 1.0:
+        center = pts.mean(axis=0)
+        pts = center + (pts - center) * margin
     rect = _order_points(pts)
     tl, tr, br, bl = rect
     width = max(np.linalg.norm(tr - tl), np.linalg.norm(br - bl))

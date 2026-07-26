@@ -140,14 +140,19 @@ class ReferenceIndex:
         top_k: int = 3,
         language: str | None = None,
         text: str | None = None,
+        number_hint: tuple[str, str] | None = None,
     ) -> IdentificationResult:
         """`text` : résultat d'`ocr_text` déjà calculé pour ce crop, à fournir
         quand l'appelant a déjà fait de l'OCR (ex: `detect_language`) — sinon
-        chaque détecteur relancerait sa propre passe OCR (~3s chacune)."""
+        chaque détecteur relancerait sa propre passe OCR (~3s chacune).
+
+        `number_hint` : numéro déjà lu par l'appelant (passe ciblée sur la
+        photo d'origine, cf. `number_detector.detect_card_number_focused`), qui
+        a accès à une image mieux cadrée que ce crop."""
         if self.is_empty():
             return IdentificationResult(candidates=[], language=language)
 
-        number_hint = detect_card_number(crop_image_bgr, text=text)
+        number_hint = number_hint or detect_card_number(crop_image_bgr, text=text)
         number = number_hint[0] if number_hint else None
         name_hint_en, name_hint_language = detect_pokemon_name_hint(crop_image_bgr, language, text=text)
         effective_language = language if language is not None else name_hint_language
@@ -156,13 +161,27 @@ class ReferenceIndex:
         hint_result = None  # (candidats reclassés, libellé matched_by)
         if number or name_hint_en:
             hinted_shortlist = self._shortlist_by_hints(number, name_hint_en)
+            reranked = None
             if not hinted_shortlist and number and name_hint_en:
-                # Numéro et nom incompatibles : le numéro (petits caractères)
-                # est bien plus souvent mal lu que le nom (gros caractères) —
-                # on retente sur le nom seul plutôt que de tout jeter.
-                hinted_shortlist = self._shortlist_by_hints(None, name_hint_en)
+                # Numéro et nom incompatibles : l'un des deux est mal lu, et on
+                # ne sait pas lequel a priori. On explore donc les DEUX pistes
+                # et on garde celle que l'image confirme le mieux (ORB) — à
+                # égalité le numéro l'emporte, car il désigne une carte unique
+                # dans son set alors qu'un nom peut venir du texte d'ambiance
+                # (constaté : "Chrysapile" lu sur une carte Lucanon, qui
+                # renvoyait vers la mauvaise extension malgré un numéro net).
+                by_number = _rerank_by_orb(crop_image_bgr, self._shortlist_by_hints(number, None))
+                by_name = _rerank_by_orb(crop_image_bgr, self._shortlist_by_hints(None, name_hint_en))
+                score_number = by_number[0].orb_score if by_number else -1
+                score_name = by_name[0].orb_score if by_name else -1
+                if score_number >= score_name:
+                    reranked, name_hint_en = by_number, None
+                else:
+                    reranked, number = by_name, None
+                hinted_shortlist = reranked
             if hinted_shortlist:
-                reranked = _rerank_by_orb(crop_image_bgr, hinted_shortlist)
+                if reranked is None:
+                    reranked = _rerank_by_orb(crop_image_bgr, hinted_shortlist)
                 if reranked:
                     matched_by = "+".join(
                         filter(None, ["number" if number else None, "name" if name_hint_en else None])

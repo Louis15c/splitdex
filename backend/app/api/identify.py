@@ -12,6 +12,7 @@ from app.core.card_identifier import MatchCandidate, load_reference_index
 from app.core.config import CROPS_DIR, UPLOADS_DIR
 from app.core.db import db_cursor, get_connection
 from app.core.language_detector import detect_language, ocr_text
+from app.core.number_detector import detect_card_number, detect_card_number_focused
 from app.core.card_translations import translate_set_name
 from app.core.pokemon_names_fr import translate_card_name_to_fr
 from app.core.validation import validate_photo_id
@@ -56,6 +57,29 @@ def _ocr_source(crop: dict, saved_image, original_photo):
         return extract_card_native(original_photo, corners)
     except Exception:
         return saved_image
+
+
+# Élargissement des coins pour la lecture du numéro : les boîtes détectées
+# rognent souvent la dernière ligne de la carte, celle qui porte le numéro.
+NUMBER_CROP_MARGIN = 1.06
+
+
+def _focused_number(crop: dict, text: str, original_photo):
+    """Numéro de carte lu par passe ciblée, uniquement quand l'OCR global n'en
+    a trouvé aucun — le numéro désigne la carte exacte au sein d'un set, et son
+    absence laissait choisir la mauvaise extension (constaté : Vikavolt
+    066/217 identifié 53/142). Nécessite la photo d'origine, seule à contenir
+    le bord bas rogné par la découpe."""
+    if detect_card_number(None, text=text):
+        return None  # déjà lisible dans l'OCR global, rien à refaire
+    corners = crop.get("corners")
+    if original_photo is None or not corners:
+        return None
+    try:
+        card = extract_card_native(original_photo, corners, margin=NUMBER_CROP_MARGIN)
+    except Exception:
+        return None
+    return detect_card_number_focused(card)
 
 
 def _crops_dir(photo_id: str):
@@ -165,7 +189,10 @@ def identify_cards(photo_id: str):
         ocr_source = _ocr_source(crop, image, original_photo)
         text = ocr_text(ocr_source)
         language = detect_language(ocr_source, text=text)
-        return crop, index.identify(image, top_k=TOP_K, language=language, text=text)
+        number_hint = _focused_number(crop, text, original_photo)
+        return crop, index.identify(
+            image, top_k=TOP_K, language=language, text=text, number_hint=number_hint
+        )
 
     with ThreadPoolExecutor(max_workers=IDENTIFY_WORKERS) as executor:
         identified = list(executor.map(_identify_crop, crops))
@@ -303,7 +330,10 @@ def identify_cards_stream(photo_id: str):
         ocr_source = _ocr_source(crop, image, original_photo)
         text = ocr_text(ocr_source)
         language = detect_language(ocr_source, text=text)
-        return crop, index.identify(image, top_k=TOP_K, language=language, text=text)
+        number_hint = _focused_number(crop, text, original_photo)
+        return crop, index.identify(
+            image, top_k=TOP_K, language=language, text=text, number_hint=number_hint
+        )
 
     def generate():
         if not crops:
