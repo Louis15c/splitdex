@@ -32,7 +32,7 @@ import numpy as np
 from app.core.card_embedder import embed_rotations
 from app.core.config import DB_DIR, REFERENCE_THUMBNAILS_DIR, SQLITE_PATH
 from app.core.db import db_cursor
-from app.core.name_detector import detect_pokemon_name_hint
+from app.core.name_detector import detect_pokemon_name_hint, japanese_name_confirms
 from app.core.number_detector import detect_card_number
 from app.core.phash import compute_phash
 
@@ -246,6 +246,17 @@ class ReferenceIndex:
                     if top.embed_sim >= EMBED_COS_TRUST and top.embed_sim - runner_up >= EMBED_COS_MARGIN:
                         top.matched_by = "embedding"
                         best = [top]
+
+        # Dernier recours pour la langue : sur une carte japonaise, l'OCR lit le
+        # katakana trop approximativement pour que la correspondance exacte du
+        # nom (plus haut) aboutisse — mais une fois la carte identifiée par
+        # l'image, on peut confronter le texte au nom japonais de CETTE carte
+        # seulement (voir `japanese_name_confirms`). Mesuré : Plusle AR et
+        # Garchomp UR japonaises passent d'indéterminées à "Japonaise", sans
+        # toucher aux cartes latines (aucun katakana à offrir).
+        if effective_language is None and best:
+            if japanese_name_confirms(text, best[0].name):
+                effective_language = "Japonaise"
 
         return IdentificationResult(candidates=best[:top_k], language=effective_language)
 

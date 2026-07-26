@@ -17,6 +17,7 @@ langue trop prudent.
 """
 
 import re
+from difflib import SequenceMatcher
 
 import numpy as np
 
@@ -26,7 +27,11 @@ from app.core.pokemon_names_fr import (
     POKEMON_NAME_FR,
     normalize_name,
 )
-from app.core.pokemon_names_jp import POKEMON_NAME_EN_BY_JP, POKEMON_NAME_EN_BY_NORMALIZED_JP
+from app.core.pokemon_names_jp import (
+    POKEMON_NAME_EN_BY_JP,
+    POKEMON_NAME_EN_BY_NORMALIZED_JP,
+    POKEMON_NAME_JP,
+)
 
 # Noms ANGLAIS normalisés — ceux du cache de référence lui-même. Une carte
 # anglaise (mais aussi espagnole/italienne, qui impriment les noms d'espèce
@@ -90,6 +95,58 @@ def _find_matches(
             results.append((key, name_en, table_language))
             break
     return results
+
+
+# Confirmation « japonaise » a posteriori : suffisamment de similarité entre le
+# nom japonais de la carte IDENTIFIÉE et un mot CJK lu par l'OCR. Mesuré sur des
+# cartes réelles : 0.57 (プラスル lu "人ラス") et 0.67 (ガブリアス lu "ウリアズ")
+# pour de vraies cartes japonaises, contre 0.00 sur huit cartes françaises —
+# la séparation est nette, 0.5 laisse de la marge des deux côtés.
+_JAPANESE_CONFIRM_RATIO = 0.5
+_CJK_RUN = re.compile(r"[゠-ヿ぀-ゟ一-鿿]+")
+
+
+def _japanese_species_name(card_name_en: str | None) -> str | None:
+    """Nom japonais de l'espèce portée par un nom de carte de référence
+    ("Garchomp ex" -> ガブリアス, "Team Rocket's Diglett" -> ディグダ) : on teste
+    chaque mot et on garde le plus long qui est une espèce connue, les noms de
+    cartes portant des préfixes/suffixes de variante autour de l'espèce."""
+    if not card_name_en:
+        return None
+    best = None
+    for token in re.split(r"[^A-Za-z]+", card_name_en):
+        japanese = POKEMON_NAME_JP.get(token)
+        if japanese and (best is None or len(token) > len(best[0])):
+            best = (token, japanese)
+    return best[1] if best else None
+
+
+def japanese_name_confirms(text: str | None, card_name_en: str | None) -> bool:
+    """Vrai si le nom japonais de la carte identifiée se retrouve, même écorché,
+    dans le texte OCR — signal de langue japonaise.
+
+    L'OCR lit le katakana de façon très approximative (プラスル -> "人ラス") : la
+    correspondance EXACTE de `detect_pokemon_name_hint` échoue alors, et une
+    recherche floue parmi les 1025 espèces produirait des faux positifs. Ici on
+    ne teste qu'UNE chaîne, celle de la carte déjà identifiée par l'image : le
+    risque de coïncidence est minime, et une carte non japonaise n'a de toute
+    façon aucun katakana à offrir."""
+    target = _japanese_species_name(card_name_en)
+    if not target or not text:
+        return False
+    target = normalize_name(target)  # neutralise dakuten/handakuten (cf. module JP)
+    if len(target) < 3:
+        return False
+    for run in _CJK_RUN.findall(text):
+        run = normalize_name(run)
+        # Fenêtre glissante de la taille du nom (±1 caractère) : le nom est noyé
+        # dans un mot plus long quand l'OCR colle le texte voisin.
+        for size in (len(target), len(target) + 1):
+            for start in range(max(1, len(run) - size + 1)):
+                window = run[start : start + size]
+                if SequenceMatcher(None, target, window).ratio() >= _JAPANESE_CONFIRM_RATIO:
+                    return True
+    return False
 
 
 def detect_pokemon_name_hint(
