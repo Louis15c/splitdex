@@ -67,16 +67,22 @@ def _find_matches(
     suit pas immédiatement un marqueur de ligne d'évolution suffit à retenir
     le nom.
 
-    `relaxed` : ne borne que le DÉBUT du mot — l'OCR colle parfois du bruit à
-    la fin du nom ("ELECTRODEWSS" lu sur une vraie carte Electrode), ce que
-    les bornes strictes rejettent. À n'utiliser qu'en second recours, si la
-    passe stricte n'a rien trouvé sur AUCUNE table : sinon "MAGNETIQUE"
-    redeviendrait un match de "MAGNETI"."""
+    `relaxed` : tolère du bruit OCR collé au nom, des DEUX côtés — à la fin
+    ("ELECTRODEWSS" lu sur une vraie carte Electrode) comme au début
+    ("peReptincel" lu sur une vraie carte Reptincel, le "pe" venant du logo
+    d'évolution voisin). Le préfixe toléré est court (≤ 3 lettres) pour rester
+    du bruit de bord et ne pas transformer la recherche en sous-chaîne libre au
+    milieu d'un mot quelconque. À n'utiliser qu'en second recours, si la passe
+    stricte n'a rien trouvé sur AUCUNE table : sinon "MAGNETIQUE" redeviendrait
+    un match de "MAGNETI"."""
     results = []
     for key, name_en in table.items():
         if not key:
             continue
-        pattern = rf"(?<![A-Z0-9]){re.escape(key)}" + ("" if relaxed else r"(?![A-Z0-9])")
+        if relaxed:
+            pattern = rf"(?<![A-Z0-9])[A-Z]{{0,3}}{re.escape(key)}"
+        else:
+            pattern = rf"(?<![A-Z0-9]){re.escape(key)}(?![A-Z0-9])"
         for match in re.finditer(pattern, haystack):
             prefix = haystack[max(0, match.start() - _EVOLUTION_CONTEXT_CHARS):match.start()]
             if _EVOLUTION_MARKER.search(prefix):

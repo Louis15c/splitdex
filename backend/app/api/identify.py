@@ -28,6 +28,35 @@ CONFIDENT_ORB_SCORE = 15  # en dessous, le match est jugé peu fiable (cf. card_
 # cœurs) et 6 sur un MacBook M1 (8 cœurs), sans réglage manuel.
 IDENTIFY_WORKERS = max(2, min(6, (os.cpu_count() or 4) - 1))
 
+# Largeur des crops sauvegardés (cf. card_detector.OUTPUT_WIDTH) : en dessous,
+# re-warper depuis la photo d'origine n'apporte AUCUN pixel supplémentaire.
+SAVED_CROP_WIDTH = 480
+
+
+def _ocr_source(crop: dict, saved_image, original_photo):
+    """Meilleure source OCR pour ce crop : la photo d'origine re-warpée quand
+    la carte y occupe plus de pixels que le crop sauvegardé (photo de téléphone
+    haute résolution : le crop perd du détail au rééchantillonnage à 480px +
+    JPEG), sinon le crop sauvegardé lui-même.
+
+    Re-warper une carte plus PETITE que 480px ne fait qu'agrandir la même zone
+    par interpolation, sans gain de détail — et l'image lissée obtenue se lit en
+    pratique moins bien que le crop (constaté : nom "Mystherbe" lu sur le crop,
+    illisible sur l'extraction native d'une photo 800x600, d'où une carte
+    identifiée à tort faute d'indice de nom)."""
+    corners = crop.get("corners")
+    if original_photo is None or not corners:
+        return saved_image
+    xs = [point[0] for point in corners]
+    ys = [point[1] for point in corners]
+    native_size = min(max(xs) - min(xs), max(ys) - min(ys))
+    if native_size <= SAVED_CROP_WIDTH:
+        return saved_image
+    try:
+        return extract_card_native(original_photo, corners)
+    except Exception:
+        return saved_image
+
 
 def _crops_dir(photo_id: str):
     return CROPS_DIR / photo_id
@@ -133,12 +162,7 @@ def identify_cards(photo_id: str):
         image = cv2.imread(str(crop_path))
         if image is None:
             return crop, None
-        ocr_source = image
-        if original_photo is not None and crop.get("corners"):
-            try:
-                ocr_source = extract_card_native(original_photo, crop["corners"])
-            except Exception:
-                ocr_source = image
+        ocr_source = _ocr_source(crop, image, original_photo)
         text = ocr_text(ocr_source)
         language = detect_language(ocr_source, text=text)
         return crop, index.identify(image, top_k=TOP_K, language=language, text=text)
@@ -276,12 +300,7 @@ def identify_cards_stream(photo_id: str):
         image = cv2.imread(str(crop_path))
         if image is None:
             return crop, None
-        ocr_source = image
-        if original_photo is not None and crop.get("corners"):
-            try:
-                ocr_source = extract_card_native(original_photo, crop["corners"])
-            except Exception:
-                ocr_source = image
+        ocr_source = _ocr_source(crop, image, original_photo)
         text = ocr_text(ocr_source)
         language = detect_language(ocr_source, text=text)
         return crop, index.identify(image, top_k=TOP_K, language=language, text=text)
