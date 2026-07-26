@@ -20,7 +20,21 @@ from app.core.config import CARD_YOLO_MODEL_PATH
 
 CONFIDENCE_THRESHOLD = 0.25
 CARD_ASPECT_RATIO = 63 / 88  # largeur / hauteur, format standard carte à jouer — toutes les cartes font la même taille
-BOX_MARGIN = 1.06  # débord appliqué à la boîte détectée (voir _expand_box_to_card_ratio)
+# Pas de débord sur le crop lui-même : il sert aussi de base au matching, et
+# les vignettes de référence sont cadrées au ras de la carte — ajouter du fond
+# décale la comparaison (mesuré : deux cartes identifiées à tort avec 6% de
+# marge). Le recalage vertical suffit à ne plus tronquer la carte ; la lecture
+# du numéro, elle, réclame sa propre marge (cf. extract_card_native).
+BOX_MARGIN = 1.0
+ALIGN_SEARCH_RATIO = 0.20  # amplitude du recalage vertical, en fraction de la hauteur
+# Le recalage vertical n'est tenté que sur les boîtes SUSPECTES, c'est-à-dire
+# celles dont le ratio s'écarte nettement du format d'une carte : une boîte
+# déjà au bon ratio encadre la carte correctement, la déplacer ne ferait que
+# dégrader le cadrage (mesuré : une carte gold au score ORB fragile basculait
+# sur une mauvaise référence). Écart mesuré sur cas réels : 8 à 15% pour une boîte
+# saine, 22 à 90% pour celles qui tronquent franchement la carte.
+ALIGN_MIN_RATIO_DEVIATION = 0.20
+
 OUTPUT_WIDTH = 480
 OUTPUT_HEIGHT = round(OUTPUT_WIDTH / CARD_ASPECT_RATIO)
 
@@ -45,6 +59,14 @@ MIN_BOXES_FOR_AREA_FILTER = 3  # médiane non significative en dessous
 # propre à conf 0,85 sur un scan qui échouait partout ailleurs.
 PADDING_FACTOR = 2.5
 PADDING_GRAY = 114  # gris du letterbox YOLO, le fond le plus neutre pour le modèle
+
+def _ratio_deviation(box: tuple[float, float, float, float]) -> float:
+    """Écart relatif entre le ratio d'une boîte brute et le format d'une carte."""
+    x1, y1, x2, y2 = box
+    height = y2 - y1
+    if height <= 0:
+        return 0.0
+    return abs((x2 - x1) / height - CARD_ASPECT_RATIO) / CARD_ASPECT_RATIO
 
 _model = None
 _model_load_attempted = False
@@ -217,7 +239,13 @@ def detect_cards_yolo(image: np.ndarray) -> list[dict] | None:
 
     detected = []
     for i, box in enumerate(ordered):
-        x1, y1, x2, y2 = _expand_box_to_card_ratio(box, image.shape)
+        # Ratio d'abord (la hauteur découle de la largeur), puis recalage
+        # vertical sur les vrais bords, et seulement ensuite la marge : cet
+        # ordre évite d'agrandir autour d'un centre encore faux.
+        ratio_box = _expand_box_to_card_ratio(box, image.shape, margin=1.0)
+        if _ratio_deviation(box) >= ALIGN_MIN_RATIO_DEVIATION:
+            ratio_box = _align_box_vertically(image, ratio_box)
+        x1, y1, x2, y2 = _expand_box_to_card_ratio(ratio_box, image.shape)
         crop = image[y1:y2, x1:x2]
         if crop.size == 0:
             continue
@@ -235,7 +263,9 @@ def detect_cards_yolo(image: np.ndarray) -> list[dict] | None:
 
 
 def _expand_box_to_card_ratio(
-    box: tuple[float, float, float, float], image_shape: tuple[int, ...]
+    box: tuple[float, float, float, float],
+    image_shape: tuple[int, ...],
+    margin: float = BOX_MARGIN,
 ) -> tuple[int, int, int, int]:
     """Ajuste une boîte détectée pour qu'elle respecte exactement le ratio
     d'une carte (63:88) avant découpe, plutôt que de forcer ce ratio en
@@ -261,8 +291,8 @@ def _expand_box_to_card_ratio(
     # décisive pour distinguer deux impressions d'une même carte. Un léger
     # débord attrape le bord complet ; un peu de fond autour ne gêne ni l'ORB
     # ni l'OCR.
-    width *= BOX_MARGIN
-    height *= BOX_MARGIN
+    width *= margin
+    height *= margin
 
     img_h, img_w = image_shape[:2]
     new_x1 = max(0, round(cx - width / 2))
@@ -270,6 +300,45 @@ def _expand_box_to_card_ratio(
     new_y1 = max(0, round(cy - height / 2))
     new_y2 = min(img_h, round(cy + height / 2))
     return new_x1, new_y1, new_x2, new_y2
+
+
+def _align_box_vertically(
+    image: np.ndarray, box: tuple[int, int, int, int]
+) -> tuple[int, int, int, int]:
+    """Recale verticalement une boîte déjà au ratio d'une carte, en la calant
+    sur les vrais bords haut/bas.
+
+    Le modèle estime bien les bords GAUCHE/DROITE (contrastés sur toute la
+    hauteur) mais tronque parfois le bas de la carte, dont le bord se confond
+    avec l'ombre portée (constaté : boîte s'arrêtant 130px trop haut, amputant
+    la ligne du numéro). Comme la largeur est fiable et que le format 63:88 est
+    connu, la hauteur est déterminée : il ne reste qu'à trouver la bonne
+    position. On teste les décalages autour de l'estimation et on garde celui
+    où les deux bords tombent sur les plus fortes transitions horizontales."""
+    x1, y1, x2, y2 = box
+    height = y2 - y1
+    img_h = image.shape[0]
+    if height <= 0 or height >= img_h:
+        return box
+
+    gray = cv2.GaussianBlur(cv2.cvtColor(image, cv2.COLOR_BGR2GRAY), (5, 5), 0).astype(np.float32)
+    profile = np.abs(np.diff(gray[:, x1:x2], axis=0)).mean(axis=1)
+
+    search = max(8, int(height * ALIGN_SEARCH_RATIO))
+    lowest_top = max(0, y1 - search)
+    highest_top = min(img_h - height, y1 + search)
+    if highest_top < lowest_top:
+        return box
+
+    def edge_strength(row: int) -> float:
+        return float(profile[max(0, row - 2) : row + 3].max()) if 0 <= row < len(profile) else 0.0
+
+    best_top, best_score = y1, -1.0
+    for top in range(lowest_top, highest_top + 1):
+        score = edge_strength(top) + edge_strength(top + height)
+        if score > best_score:
+            best_score, best_top = score, top
+    return x1, best_top, x2, best_top + height
 
 
 def _sort_reading_order(boxes: list[tuple[float, float, float, float]]):
