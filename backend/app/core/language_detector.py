@@ -39,6 +39,7 @@ crops réels qui ne renvoyaient auparavant aucun texte exploitable :
 """
 
 import os
+import re
 
 import cv2
 import numpy as np
@@ -54,6 +55,12 @@ from PIL import Image
 os.environ.setdefault("OMP_THREAD_LIMIT", "1")
 
 MIN_OCR_WIDTH = 1200  # Tesseract lit mal le texte fin des cartes en dessous de cette taille
+
+# Verdict japonais (voir la fin de `detect_language`) : volume de katakana ET
+# absence de vocabulaire latin, les deux conditions étant nécessaires.
+_KATAKANA = re.compile(r"[゠-ヿ]")
+MIN_KATAKANA_FOR_JAPANESE = 10
+MAX_LATIN_FOR_JAPANESE = 10
 
 # Vocabulaire pondéré par langue, tokens NORMALISÉS (accents retirés,
 # majuscules — voir _normalize). Poids 3 : formules quasi exclusives au TCG
@@ -316,6 +323,15 @@ def detect_language(image_bgr: np.ndarray, text: str | None = None) -> str | Non
     ):
         return top_language
 
-    # Pas de verdict "Japonaise" ici — voir le docstring du module : le
-    # signal CJK de l'OCR est indiscernable de ses propres hallucinations.
+    # Verdict "Japonaise" : beaucoup de katakana ET quasiment aucun vocabulaire
+    # latin. La seule présence de katakana ne suffit pas — la passe `jpn`
+    # hallucine des kana sur les reflets holographiques des cartes latines
+    # (mesuré : 22 katakana sur une carte française reverse-holo, soit PLUS que
+    # sur une vraie carte japonaise à 17). Ce qui sépare vraiment les deux,
+    # c'est le texte latin : une carte française lisible score 14 à 64 de
+    # vocabulaire, une vraie japonaise 2 à 8, l'OCR n'ayant presque rien de
+    # latin à se mettre sous la dent.
+    if len(_KATAKANA.findall(text)) >= MIN_KATAKANA_FOR_JAPANESE and top_score <= MAX_LATIN_FOR_JAPANESE:
+        return "Japonaise"
+
     return None  # signal trop faible ou ambigu : on ne devine pas

@@ -20,6 +20,7 @@ from app.core.config import CARD_YOLO_MODEL_PATH
 
 CONFIDENCE_THRESHOLD = 0.25
 CARD_ASPECT_RATIO = 63 / 88  # largeur / hauteur, format standard carte à jouer — toutes les cartes font la même taille
+BOX_MARGIN = 1.06  # débord appliqué à la boîte détectée (voir _expand_box_to_card_ratio)
 OUTPUT_WIDTH = 480
 OUTPUT_HEIGHT = round(OUTPUT_WIDTH / CARD_ASPECT_RATIO)
 
@@ -254,6 +255,14 @@ def _expand_box_to_card_ratio(
         height = width / CARD_ASPECT_RATIO
     else:
         width = height * CARD_ASPECT_RATIO
+
+    # Marge de sécurité : le modèle serre la carte d'un cheveu et la découpe
+    # ampute la toute dernière ligne — celle du NUMÉRO ("066/217"), pourtant
+    # décisive pour distinguer deux impressions d'une même carte. Un léger
+    # débord attrape le bord complet ; un peu de fond autour ne gêne ni l'ORB
+    # ni l'OCR.
+    width *= BOX_MARGIN
+    height *= BOX_MARGIN
 
     img_h, img_w = image_shape[:2]
     new_x1 = max(0, round(cx - width / 2))
