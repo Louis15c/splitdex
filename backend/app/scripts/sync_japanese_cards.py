@@ -15,15 +15,21 @@ Idempotent : relançable, il réécrit les lignes existantes.
 Usage : python -m app.scripts.sync_japanese_cards
 """
 
+import gzip
 import json
 import sqlite3
+import sys
 import urllib.request
+from pathlib import Path
 
 from app.core.config import DB_DIR
 from app.core.db import init_db
 
 SETS_URL = "https://api.tcgdex.net/v2/ja/sets"
 SET_URL = "https://api.tcgdex.net/v2/ja/sets/{set_id}"
+# Catalogue embarqué dans le dépôt (115 Ko) : installation instantanée et hors
+# ligne, le réseau ne servant qu'à le rafraîchir avec `--refresh`.
+BUNDLE_PATH = Path(__file__).resolve().parent.parent / "data" / "japanese_cards.json.gz"
 _UA = {"User-Agent": "Mozilla/5.0 (Splitdex)"}
 
 
@@ -39,8 +45,47 @@ def _normalize(number: str) -> str:
     return str(number).lstrip("0") or "0"
 
 
+_UPSERT = """INSERT INTO japanese_cards
+                 (id, set_id, set_name, printed_total, number, name, image_url)
+             VALUES (?, ?, ?, ?, ?, ?, ?)
+             ON CONFLICT(id) DO UPDATE SET
+                 set_id=excluded.set_id, set_name=excluded.set_name,
+                 printed_total=excluded.printed_total, number=excluded.number,
+                 name=excluded.name, image_url=excluded.image_url"""
+_FIELDS = ("id", "set_id", "set_name", "printed_total", "number", "name", "image_url")
+
+
+def _load_bundle() -> list | None:
+    if not BUNDLE_PATH.exists():
+        return None
+    with gzip.open(BUNDLE_PATH, "rt", encoding="utf-8") as bundle:
+        return json.load(bundle)
+
+
+def _save_bundle(connection: sqlite3.Connection) -> None:
+    connection.row_factory = sqlite3.Row
+    rows = [dict(row) for row in connection.execute(
+        f"SELECT {', '.join(_FIELDS)} FROM japanese_cards ORDER BY id")]
+    BUNDLE_PATH.parent.mkdir(parents=True, exist_ok=True)
+    with gzip.open(BUNDLE_PATH, "wt", encoding="utf-8", compresslevel=9) as bundle:
+        json.dump(rows, bundle, ensure_ascii=False, separators=(",", ":"))
+
+
 def main() -> None:
     init_db()
+    if "--refresh" not in sys.argv:
+        cards = _load_bundle()
+        if cards is not None:
+            connection = sqlite3.connect(str(DB_DIR / "splitdex.sqlite3"))
+            connection.executemany(
+                _UPSERT, [tuple(card[field] for field in _FIELDS) for card in cards]
+            )
+            connection.commit()
+            count = connection.execute("SELECT COUNT(*) FROM japanese_cards").fetchone()[0]
+            print(f"Catalogue japonais : {count} cartes en base (lot embarqué).")
+            print("Pour re-interroger TCGdex : --refresh")
+            return
+        print("Lot embarqué absent, interrogation de TCGdex…")
     connection = sqlite3.connect(str(DB_DIR / "splitdex.sqlite3"))
 
     sets = _fetch(SETS_URL) or []
@@ -80,7 +125,8 @@ def main() -> None:
             print(f"  {index}/{len(sets)} sets — {total} cartes", flush=True)
 
     count = connection.execute("SELECT COUNT(*) FROM japanese_cards").fetchone()[0]
-    print(f"\nCatalogue japonais : {count} cartes en base.")
+    _save_bundle(connection)
+    print(f"\nCatalogue japonais : {count} cartes en base (lot mis à jour).")
 
 
 if __name__ == "__main__":

@@ -16,15 +16,22 @@ Idempotent : relançable, il réécrit simplement les noms.
 Usage : python -m app.scripts.sync_french_names
 """
 
+import gzip
 import json
 import sqlite3
+import sys
 import urllib.request
+from pathlib import Path
 
 from app.core.config import DB_DIR
 from app.core.db import init_db
 from app.core.tcgdex_set_ids import SET_TCGDEX_ID
 
 SET_URL = "https://api.tcgdex.net/v2/fr/sets/{set_id}"
+# Noms embarqués dans le dépôt : la synchronisation est ainsi instantanée et
+# hors ligne sur une nouvelle machine (121 Ko), le réseau ne servant qu'à
+# rafraîchir le lot avec `--refresh`.
+BUNDLE_PATH = Path(__file__).resolve().parent.parent / "data" / "french_names.json.gz"
 _UA = {"User-Agent": "Mozilla/5.0 (Splitdex)"}
 
 
@@ -41,8 +48,37 @@ def _normalize(number: str) -> str:
     return str(number).lstrip("0") or "0"
 
 
+def _load_bundle() -> list | None:
+    if not BUNDLE_PATH.exists():
+        return None
+    with gzip.open(BUNDLE_PATH, "rt", encoding="utf-8") as bundle:
+        return json.load(bundle)
+
+
+def _save_bundle(pairs: list) -> None:
+    BUNDLE_PATH.parent.mkdir(parents=True, exist_ok=True)
+    with gzip.open(BUNDLE_PATH, "wt", encoding="utf-8", compresslevel=9) as bundle:
+        json.dump(pairs, bundle, ensure_ascii=False, separators=(",", ":"))
+
+
 def main() -> None:
-    init_db()  # garantit la présence de la colonne name_fr (migration)
+    init_db()
+    if "--refresh" not in sys.argv:
+        pairs = _load_bundle()
+        if pairs is not None:
+            connection = sqlite3.connect(str(DB_DIR / "splitdex.sqlite3"))
+            connection.executemany(
+                "UPDATE reference_cards SET name_fr = ? WHERE id = ?",
+                [(name, card_id) for card_id, name in pairs],
+            )
+            connection.commit()
+            covered = connection.execute(
+                "SELECT COUNT(*) FROM reference_cards WHERE name_fr IS NOT NULL"
+            ).fetchone()[0]
+            print(f"Noms français officiels : {covered} cartes (lot embarqué).")
+            print("Pour re-interroger TCGdex : --refresh")
+            return
+        print("Lot embarqué absent, interrogation de TCGdex…")  # garantit la présence de la colonne name_fr (migration)
     connection = sqlite3.connect(str(DB_DIR / "splitdex.sqlite3"))
     connection.row_factory = sqlite3.Row
     our_sets = [row["set_id"] for row in connection.execute(
@@ -76,7 +112,9 @@ def main() -> None:
     covered = connection.execute(
         "SELECT COUNT(*) FROM reference_cards WHERE name_fr IS NOT NULL"
     ).fetchone()[0]
-    print(f"\nNoms français officiels : {covered}/{total} cartes")
+    _save_bundle([[row["id"], row["name_fr"]] for row in connection.execute(
+        "SELECT id, name_fr FROM reference_cards WHERE name_fr IS NOT NULL ORDER BY id")])
+    print(f"\nNoms français officiels : {covered}/{total} cartes (lot mis à jour)")
     if sets_without_french:
         print(f"Sets absents du catalogue français ({len(sets_without_french)}) : "
               f"{', '.join(sets_without_french)}")

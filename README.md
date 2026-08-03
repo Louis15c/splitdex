@@ -51,7 +51,18 @@ Le script prépare l'environnement puis démarre le serveur. Ouvrez ensuite :
   `http://ADRESSE-IP-DE-LA-MACHINE:8000`
   (trouvez l'IP avec `ipconfig getifaddr en0` sur macOS, `hostname -I` sur Linux).
 
-> Détails (pare-feu, données de référence, reconstruction du cache…) dans la
+**Sur une machine neuve**, après le premier lancement, chargez les données de
+référence livrées avec le dépôt (instantané, sans réseau) :
+
+```bash
+cd backend && source .venv/bin/activate
+python -m app.scripts.sync_french_names     # noms officiels français
+python -m app.scripts.sync_japanese_cards   # catalogue japonais
+```
+
+Ajoutez `--refresh` à l'une ou l'autre pour les re-télécharger depuis TCGdex.
+
+> Détails (pare-feu, cache de 20 000 cartes, embeddings…) dans la
 > [documentation technique](doc.md).
 
 ---
