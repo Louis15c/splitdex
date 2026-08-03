@@ -36,7 +36,7 @@ def _sanitize_filename(name: str) -> str:
 
 def _get_reference_card(cursor: sqlite3.Cursor, card_id: str) -> sqlite3.Row | None:
     cursor.execute(
-        "SELECT set_id, name, name_fr, set_name, series, number, printed_total, rarity "
+        "SELECT id, set_id, name, name_fr, set_name, series, number, printed_total, rarity "
         "FROM reference_cards WHERE id = ?",
         (card_id,),
     )

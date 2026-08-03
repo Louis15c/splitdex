@@ -16,6 +16,7 @@ from app.core.card_translations import (
     variant_title,
 )
 from app.core.config import CONDITION_PHRASES, DEFAULT_LISTING_CONDITION, SHOP_HASHTAG, TEMPLATES_DIR
+from app.core.japanese_matcher import find_japanese_equivalent, japanese_set_label
 from app.core.pokemon_names_fr import translate_card_name_to_fr
 
 _env = Environment(
@@ -40,14 +41,18 @@ def _build_hashtags(name: str | None, variant: str | None, language_tag: str | N
         remaining = [word for word in words if not word.isupper()]
         if remaining:
             tags.append(hashtag("".join(remaining)))
+    # Ordre repris des annonces réelles : provenance (bloc puis extension) avant
+    # la langue, elle-même juste avant les tags de boutique.
+    if series:
+        # Un code de set japonais garde ses capitales ("#SV3A"), un nom de bloc
+        # se normalise comme le reste ("#écarlateetviolet").
+        tags.append(series if series.isupper() and " " not in series else hashtag(series))
+    if set_name:
+        tags.append(hashtag(set_name))
     if language_tag:
         # Minuscules dans les hashtags ("#jap"), alors que le TITRE garde la
         # forme courte en capitales ("JAP") — conforme aux annonces réelles.
         tags.append(language_tag.lower())
-    if series:
-        tags.append(hashtag(series))
-    if set_name:
-        tags.append(hashtag(set_name))
     tags.append("collection")
     tags.append(SHOP_HASHTAG)
 
@@ -100,6 +105,20 @@ def generate_listing_text(
     # rareté permet de déduire.
     variant = variant or rarity_display(card.get("rarity"))
 
+    number = card.get("number")
+    printed_total = card.get("printed_total")
+
+    # Carte japonaise : c'est la référence IMPRIMÉE SUR ELLE qu'attend
+    # l'acheteur ("65/62 raging surf"), pas celle de l'édition internationale
+    # ("193/182 Faille Paradoxe") que connaît notre catalogue.
+    if language == "Japonaise" and card.get("id"):
+        japanese = find_japanese_equivalent(card["id"], card.get("name"))
+        if japanese:
+            number = japanese["number"]
+            printed_total = japanese["printed_total"]
+            set_name_fr = japanese_set_label(japanese["set_id"])
+            series_fr = japanese["set_id"].upper()
+
     # Le set de base d'une série porte souvent le même nom que la série elle-
     # même (ex: set "Scarlet & Violet" dans la série "Scarlet & Violet") : sans
     # ça, la description dirait "provenant du bloc X, extension X". Le titre
@@ -111,8 +130,8 @@ def generate_listing_text(
         "set_name": set_name_fr,
         "extension": extension_name,
         "series": series_fr,
-        "number": card.get("number"),
-        "printed_total": card.get("printed_total"),
+        "number": number,
+        "printed_total": printed_total,
         "variant": variant,
         # Titre : forme courte ("reverse" plutôt que "reverse holo").
         "variant_title": variant_title(variant),

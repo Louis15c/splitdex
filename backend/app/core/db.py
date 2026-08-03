@@ -32,6 +32,22 @@ CREATE TABLE IF NOT EXISTS identifications (
     PRIMARY KEY (photo_id, crop_filename)
 );
 
+-- Catalogue JAPONAIS (TCGdex, locale ja). Les cartes japonaises portent un
+-- numéro et une extension DIFFÉRENTS de l'édition internationale (une Posipi
+-- "193/182 Faille Paradoxe" est vendue "65/62 raging surf" au Japon) : c'est
+-- cette référence-là qu'attend l'acheteur d'une carte japonaise.
+CREATE TABLE IF NOT EXISTS japanese_cards (
+    id TEXT PRIMARY KEY,          -- id TCGdex, ex: "SV3a-065"
+    set_id TEXT NOT NULL,         -- ex: "SV3a"
+    set_name TEXT NOT NULL,       -- nom japonais, ex: "レイジングサーフ"
+    printed_total INTEGER,        -- total OFFICIEL du set (62), pas total+secrètes
+    number TEXT NOT NULL,         -- numéro normalisé sans zéros de tête ("65")
+    name TEXT NOT NULL,           -- nom japonais de la carte, ex: "プラスル"
+    image_url TEXT,
+    phash TEXT                    -- rempli à la demande, pour l'appariement visuel
+);
+CREATE INDEX IF NOT EXISTS idx_japanese_cards_name ON japanese_cards (name);
+
 CREATE TABLE IF NOT EXISTS listings (
     photo_id TEXT NOT NULL,
     crop_filename TEXT NOT NULL,
@@ -61,6 +77,10 @@ MIGRATIONS = [
     # de la Team Rocket", "Carchacrok-ex") — à préférer à toute traduction
     # reconstruite depuis le nom anglais. Rempli par sync_french_names.
     ("reference_cards", "name_fr", "TEXT"),
+    # Équivalent japonais résolu (voir japanese_cards) : mémorisé sur la carte
+    # internationale pour ne le chercher qu'une fois. "" = cherché sans succès,
+    # à distinguer de NULL = jamais cherché.
+    ("reference_cards", "jp_card_id", "TEXT"),
 ]
 
 
