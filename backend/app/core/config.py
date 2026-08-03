@@ -37,12 +37,15 @@ LISTING_CONDITIONS = ["Neuf", "Très bon état", "Bon état", "Satisfaisant"]
 # "reverse rocket" : le reverse spécifique des sets Team Rocket, que les
 # collectionneurs nomment ainsi plutôt que "reverse holo".
 LISTING_VARIANTS = ["", "holo", "reverse holo", "reverse rocket"]
-# Phrase insérée dans la description pour chaque état, ex: "carte en bon état".
+# Proposition complète insérée en fin de description, reprise des annonces
+# réelles ("carte sortie de booster, en état comme neuf"). La mention "sortie de
+# booster" est une affirmation de provenance : à retirer ici si le stock vient
+# d'ailleurs (achat à l'unité, lot d'occasion).
 CONDITION_PHRASES = {
-    "Neuf": "état neuf",
-    "Très bon état": "très bon état",
-    "Bon état": "bon état",
-    "Satisfaisant": "mauvais état",
+    "Neuf": "carte sortie de booster, en état neuf",
+    "Très bon état": "carte sortie de booster, en état comme neuf",
+    "Bon état": "carte en bon état",
+    "Satisfaisant": "carte en état satisfaisant",
 }
 
 # Hashtag de fin d'annonce identifiant la boutique (`#collection #{SHOP_HASHTAG}`),

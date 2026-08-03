@@ -31,9 +31,19 @@ def _build_hashtags(name: str | None, variant: str | None, language_tag: str | N
     if name:
         tags.append(hashtag(name))
     if variant:
-        tags.extend(hashtag(word) for word in variant.split())
+        # Les acronymes gardent leurs capitales et font tag à part, le reste est
+        # collé en un seul mot : "AR full art" -> #AR #fullart, comme dans les
+        # annonces réelles (découper mot à mot donnait "#full #art", des tags
+        # que personne ne cherche).
+        words = variant.split()
+        tags.extend(word for word in words if word.isupper())
+        remaining = [word for word in words if not word.isupper()]
+        if remaining:
+            tags.append(hashtag("".join(remaining)))
     if language_tag:
-        tags.append(language_tag)  # conservé en majuscules, ex: "#ITA" (pas de minuscule ici)
+        # Minuscules dans les hashtags ("#jap"), alors que le TITRE garde la
+        # forme courte en capitales ("JAP") — conforme aux annonces réelles.
+        tags.append(language_tag.lower())
     if series:
         tags.append(hashtag(series))
     if set_name:
