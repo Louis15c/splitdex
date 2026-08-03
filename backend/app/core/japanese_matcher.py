@@ -37,12 +37,51 @@ MAX_PHASH_DISTANCE = 16
 MAX_CANDIDATES = 40
 _UA = {"User-Agent": "Mozilla/5.0 (Splitdex)"}
 
-# Nom usuel des extensions japonaises dans les annonces francophones. TCGdex ne
-# publie que le nom japonais (レイジングサーフ) et il n'existe pas de traduction
-# officielle : cette table se remplit à la main, au fil des sets rencontrés. Un
-# set absent est annoncé par son CODE (ex. "SV3a"), factuel et jamais inventé.
+# Nom usuel des extensions japonaises dans les annonces (celui qu'emploient
+# vendeurs et acheteurs, ex. "raging surf"). TCGdex ne publie que le nom japonais
+# (レイジングサーフ) et il n'existe pas de nom officiel français ; ces noms
+# proviennent des sources de référence du TCG japonais (PokeGuardian, TCG
+# Republic, Bulbapedia).
+#
+# À noter : on se fie au CODE de set, pas au nom renvoyé par TCGdex — celui-ci
+# est parfois faux (il annonce "レイジングサーフ" pour SV4a, dont les cartes sont
+# pourtant bien celles de Shiny Treasure ex).
+#
+# Un set absent de la table est annoncé par son code (ex. "SVLN"), factuel et
+# jamais inventé. Compléter au fil des sets rencontrés.
 JAPANESE_SET_NAMES = {
+    # Écarlate et Violet
+    "SV1S": "scarlet ex",
+    "SV1V": "violet ex",
+    "SV1a": "triplet beat",
+    "SV2P": "snow hazard",
+    "SV2D": "clay burst",
+    "SV2a": "pokemon card 151",
+    "SV3": "ruler of the black flame",
     "SV3a": "raging surf",
+    "SV4K": "ancient roar",
+    "SV4M": "future flash",
+    "SV4a": "shiny treasure ex",
+    "SV5K": "wild force",
+    "SV5a": "crimson haze",
+    "SV6": "mask of change",
+    "SV7": "stellar miracle",
+    "SV7a": "paradise dragona",
+    "SV8": "super electric breaker",
+    "SV8a": "terastal festival ex",
+    "SV9": "battle partners",
+    "SV9a": "hot air arena",
+    "SV10": "glory of team rocket",
+    "SV11B": "black bolt",
+    "SV11W": "white flare",
+    # Méga-Évolution
+    "M1S": "mega symphonia",
+    "M1L": "mega brave",
+    "M2": "inferno X",
+    "M2a": "mega dream ex",
+    "M3": "nihil zero",
+    "M4": "ninja spinner",
+    "M5": "abyss eye",
 }
 
 
