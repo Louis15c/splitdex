@@ -23,11 +23,18 @@ DEFAULT_LISTING_CONDITION = "Très bon état"
 # Catégories réelles de l'état Vinted (constaté sur de vraies annonces).
 LISTING_CONDITIONS = ["Neuf", "Très bon état", "Bon état", "Satisfaisant"]
 # Finitions proposées dans la fiche, telles qu'elles s'écrivent dans le titre et
-# la description ("Lucanon reverse holo 66/217..."). Choisies à la main : le
-# catalogue ne décrit pas ces variantes, et le foil ne se détecte pas de façon
-# fiable sur photo (il ne se voit que sous le bon angle de lumière). "" = ne
-# rien mentionner, et laisser la rareté du catalogue décider.
-LISTING_VARIANTS = ["", "holo", "reverse holo", "full art", "promo"]
+# la description ("Lucanon reverse holo 66/217...").
+#
+# UNIQUEMENT holo et reverse : ce sont les seules vraies VARIATIONS, deux
+# finitions d'une même carte (même numéro, même entrée de catalogue) que rien ne
+# distingue dans les données — et que le foil ne permet pas de détecter sur
+# photo, ne se voyant que sous le bon angle de lumière. Seul le vendeur, carte en
+# main, peut trancher.
+#
+# Full art, promo, illustration rare... n'ont RIEN à faire ici : ce sont des
+# cartes différentes, avec leur propre numéro et leur propre rareté — elles se
+# déduisent donc automatiquement du catalogue (voir RARITY_DISPLAY_FR).
+LISTING_VARIANTS = ["", "holo", "reverse holo"]
 # Phrase insérée dans la description pour chaque état, ex: "carte en bon état".
 CONDITION_PHRASES = {
     "Neuf": "état neuf",

@@ -359,6 +359,24 @@ RARITY_DISPLAY_FR = {
     "ACE SPEC Rare": "ACE SPEC",
     "Rare BREAK": "BREAK",
     "LEGEND": "LEGEND",
+    # Raretés spéciales ajoutées après audit du cache : elles ne produisaient
+    # AUCUNE mention alors qu'elles désignent des cartes à part entière (numéro
+    # et rareté propres), que le vendeur n'a donc pas à renseigner à la main.
+    "Ultra Rare": "ultra rare",  # les cartes ex full art des sets Écarlate et Violet
+    "Shiny Rare": "shiny",
+    "Shiny Ultra Rare": "shiny ultra rare",
+    "Trainer Gallery Rare Holo": "Trainer Gallery",
+    "Rare Holo LV.X": "LV.X",
+    "Rare Prism Star": "Prism Star",
+    "Rare Prime": "Prime",
+    "Rare Holo Star": "Star",
+    "Rare Shining": "shining",
+    "Rare ACE": "ACE",
+    "Mega Hyper Rare": "hyper rare",
+    "Classic Collection": "collection classique",
+    # Numérotées au-delà du total du set (265/217, 172/86) : des secrètes.
+    "MEGA_ATTACK_RARE": "secrète",
+    "Black White Rare": "secrète",
 }
 
 # Langue détectée (`language_detector.py`) -> (tag court pour le titre, à la
