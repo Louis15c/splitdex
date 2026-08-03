@@ -13,6 +13,7 @@ from app.core.card_translations import (
     rarity_display,
     translate_series,
     translate_set_name,
+    variant_title,
 )
 from app.core.config import CONDITION_PHRASES, DEFAULT_LISTING_CONDITION, SHOP_HASHTAG, TEMPLATES_DIR
 from app.core.pokemon_names_fr import translate_card_name_to_fr
@@ -101,6 +102,8 @@ def generate_listing_text(
         "number": card.get("number"),
         "printed_total": card.get("printed_total"),
         "variant": variant,
+        # Titre : forme courte ("reverse" plutôt que "reverse holo").
+        "variant_title": variant_title(variant),
         "language_tag": language_tag,
         "language_adjective": language_adjective,
         "condition_phrase": CONDITION_PHRASES.get(resolved_condition, resolved_condition.lower()),

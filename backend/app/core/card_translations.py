@@ -344,7 +344,7 @@ RARITY_DISPLAY_FR = {
     "Rare Holo V": "holo V",
     "Rare Holo VMAX": "holo VMAX",
     "Rare Holo VSTAR": "holo VSTAR",
-    "Rare Ultra": "ultra rare",
+    "Rare Ultra": "full art",
     "Rare Secret": "secrète",
     "Rare Rainbow": "arc-en-ciel",
     "Rare Shiny": "shiny",
@@ -353,16 +353,16 @@ RARITY_DISPLAY_FR = {
     "Promo": "promo",
     "Radiant Rare": "radieuse",
     "Double Rare": "double rare",
-    "Illustration Rare": "illustration rare",
-    "Special Illustration Rare": "illustration spéciale",
-    "Hyper Rare": "hyper rare",
+    "Illustration Rare": "full art",
+    "Special Illustration Rare": "full art",
+    "Hyper Rare": "gold UR",
     "ACE SPEC Rare": "ACE SPEC",
     "Rare BREAK": "BREAK",
     "LEGEND": "LEGEND",
     # Raretés spéciales ajoutées après audit du cache : elles ne produisaient
     # AUCUNE mention alors qu'elles désignent des cartes à part entière (numéro
     # et rareté propres), que le vendeur n'a donc pas à renseigner à la main.
-    "Ultra Rare": "ultra rare",  # les cartes ex full art des sets Écarlate et Violet
+    "Ultra Rare": "full art",  # les cartes ex full art des sets Écarlate et Violet
     "Shiny Rare": "shiny",
     "Shiny Ultra Rare": "shiny ultra rare",
     "Trainer Gallery Rare Holo": "Trainer Gallery",
@@ -372,7 +372,7 @@ RARITY_DISPLAY_FR = {
     "Rare Holo Star": "Star",
     "Rare Shining": "shining",
     "Rare ACE": "ACE",
-    "Mega Hyper Rare": "hyper rare",
+    "Mega Hyper Rare": "gold UR",
     "Classic Collection": "collection classique",
     # Numérotées au-delà du total du set (265/217, 172/86) : des secrètes.
     "MEGA_ATTACK_RARE": "secrète",
@@ -406,6 +406,18 @@ def translate_set_name(set_name: str | None, set_id: str | None = None) -> str |
     if not set_name:
         return set_name
     return SET_NAME_FR.get(set_name, set_name)
+
+
+# Forme courte pour le TITRE, comme pour la langue ("ITA" en titre, "italienne"
+# en description) : le titre Vinted est court et lu en diagonale, "reverse" y
+# suffit — la description garde la formulation complète.
+VARIANT_TITLE_SHORT = {"reverse holo": "reverse"}
+
+
+def variant_title(variant: str | None) -> str | None:
+    if not variant:
+        return variant
+    return VARIANT_TITLE_SHORT.get(variant, variant)
 
 
 def rarity_display(rarity: str | None) -> str | None:
