@@ -176,6 +176,78 @@ def normalize_name(text: str) -> str:
     return "".join(ch for ch in decomposed if not unicodedata.combining(ch)).upper()
 
 
+# Dresseurs/équipes dont la carte porte le nom ("Team Rocket's Diglett"), avec
+# leur nom OFFICIEL français. L'article est inclus quand il en faut un, pour
+# composer "de la Team Rocket" et non "de Team Rocket". Couverture volontairement
+# limitée aux noms sûrs : un propriétaire inconnu garde son nom anglais, la
+# STRUCTURE française étant de toute façon rétablie.
+TRAINER_NAME_FR = {
+    "Team Rocket": "la Team Rocket",
+    "Rocket": "la Team Rocket",
+    "The Rocket": "la Team Rocket",
+    "Team Aqua": "la Team Aqua",
+    "Team Magma": "la Team Magma",
+    "Team Galactic": "la Team Galaxie",
+    "Misty": "Ondine",
+    "Brock": "Pierre",
+    "Sabrina": "Morgane",
+    "Blaine": "Auguste",
+    "Lt. Surge": "Major Bob",
+    "Koga": "Koga",
+    "Erika": "Erika",
+    "Giovanni": "Giovanni",
+    "Janine": "Jeannine",
+    "Karen": "Katherina",
+    "Morty": "Mortimer",
+    "Lance": "Peter",
+    "Bill": "Léo",
+    "Cynthia": "Cynthia",
+    "Volkner": "Tanguy",
+    "Cheren": "Tcheren",
+    "Elesa": "Inezia",
+    "Colress": "Achroma",
+    "Cyrus": "Hélio",
+    "Maxie": "Max",
+    "Archie": "Arthur",
+    "Clemont": "Lem",
+    "Korrina": "Cornélia",
+    "Lillie": "Lilie",
+    "Gladion": "Gladio",
+    "Hop": "Nabil",
+    "Marnie": "Rosemary",
+    "Iono": "Mashynn",
+    "Arven": "Pepper",
+    "Nemona": "Menzi",
+    "Ash": "Sacha",
+    "Professor Oak": "Professeur Chen",
+    "Professor Elm": "Professeur Orme",
+    "Professor Birch": "Professeur Seko",
+}
+
+
+def _contains_species(text: str) -> bool:
+    """Vrai si le texte contient un nom d'espèce (bornes de mots). Sert à
+    distinguer une carte Pokémon possédée ("Team Rocket's Diglett") d'une carte
+    Dresseur ("Boss's Orders") : on ne peut pas se fier au fait que la
+    traduction change le texte, beaucoup d'espèces portant le même nom dans les
+    deux langues (Mewtwo, Zorua, Sharpedo...)."""
+    import re
+
+    return any(
+        re.search(r"(?<![A-Za-z])" + re.escape(english) + r"(?![a-z])", text)
+        for english in POKEMON_NAME_FR
+    )
+
+
+def _possessive_suffix(owner_en: str) -> str:
+    """Compose le complément français : "de la Team Rocket", "d'Erika", "de
+    Cynthia". L'élision suit la prononciation (voyelle ou h muet)."""
+    owner = TRAINER_NAME_FR.get(owner_en, owner_en)
+    if owner.split(" ", 1)[0].lower() in ("la", "le", "les", "l'"):
+        return f"de {owner}"
+    return f"d'{owner}" if owner[:1].lower() in "aeiouyhàâéèêîïôöûü" else f"de {owner}"
+
+
 def translate_card_name_to_fr(name_en: str | None) -> str | None:
     """Traduit vers le français le nom d'une carte tel que stocké dans
     `reference_cards.name` — qui peut porter un suffixe/préfixe de variante
@@ -192,6 +264,19 @@ def translate_card_name_to_fr(name_en: str | None) -> str | None:
 
     if name_en in POKEMON_NAME_FR:
         return POKEMON_NAME_FR[name_en]
+
+    # Possessif : l'anglais antépose le propriétaire ("Team Rocket's Diglett"),
+    # le français le postpose ("Taupiqueur de la Team Rocket"). Traduire mot à
+    # mot donnait "Team Rocket's Taupiqueur", qui n'est le nom officiel de rien.
+    # On ne transforme QUE si la partie possédée est bien une espèce : les
+    # cartes Dresseur ("Professor's Research", "Boss's Orders") suivent d'autres
+    # règles et restent intactes.
+    possessive = re.match(r"^(.+?)'s\s+(.+)$", name_en)
+    if possessive:
+        owner_en, owned_en = possessive.group(1), possessive.group(2)
+        if _contains_species(owned_en):
+            owned_fr = translate_card_name_to_fr(owned_en)
+            return f"{owned_fr} {_possessive_suffix(owner_en)}"
 
     for english, french in sorted(POKEMON_NAME_FR.items(), key=lambda item: -len(item[0])):
         # Bornes de mots : "Mew" ne doit pas matcher dans "Mewtwo" (le tri

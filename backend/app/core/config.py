@@ -34,7 +34,9 @@ LISTING_CONDITIONS = ["Neuf", "Très bon état", "Bon état", "Satisfaisant"]
 # Full art, promo, illustration rare... n'ont RIEN à faire ici : ce sont des
 # cartes différentes, avec leur propre numéro et leur propre rareté — elles se
 # déduisent donc automatiquement du catalogue (voir RARITY_DISPLAY_FR).
-LISTING_VARIANTS = ["", "holo", "reverse holo"]
+# "reverse rocket" : le reverse spécifique des sets Team Rocket, que les
+# collectionneurs nomment ainsi plutôt que "reverse holo".
+LISTING_VARIANTS = ["", "holo", "reverse holo", "reverse rocket"]
 # Phrase insérée dans la description pour chaque état, ex: "carte en bon état".
 CONDITION_PHRASES = {
     "Neuf": "état neuf",
