@@ -36,7 +36,8 @@ def _sanitize_filename(name: str) -> str:
 
 def _get_reference_card(cursor: sqlite3.Cursor, card_id: str) -> sqlite3.Row | None:
     cursor.execute(
-        "SELECT set_id, name, set_name, series, number, printed_total, rarity FROM reference_cards WHERE id = ?",
+        "SELECT set_id, name, name_fr, set_name, series, number, printed_total, rarity "
+        "FROM reference_cards WHERE id = ?",
         (card_id,),
     )
     return cursor.fetchone()
@@ -47,7 +48,7 @@ def _serialize_listing(cursor: sqlite3.Cursor, row: sqlite3.Row) -> dict:
     return {
         "crop_filename": row["crop_filename"],
         "card_id": row["card_id"],
-        "card_name": translate_card_name_to_fr(card["name"]) if card else None,
+        "card_name": (card["name_fr"] or translate_card_name_to_fr(card["name"])) if card else None,
         "set_name": translate_set_name(card["set_name"], card["set_id"]) if card else None,
         "number": card["number"] if card else None,
         "rarity": card["rarity"] if card else None,

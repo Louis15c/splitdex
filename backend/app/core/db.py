@@ -57,6 +57,10 @@ MIGRATIONS = [
     # photo (le foil ne se voit que sous le bon angle). NULL = on s'en remet à
     # la rareté du catalogue.
     ("listings", "variant", "TEXT"),
+    # Nom OFFICIEL français de la carte, tel que publié par TCGdex ("Taupiqueur
+    # de la Team Rocket", "Carchacrok-ex") — à préférer à toute traduction
+    # reconstruite depuis le nom anglais. Rempli par sync_french_names.
+    ("reference_cards", "name_fr", "TEXT"),
 ]
 
 
