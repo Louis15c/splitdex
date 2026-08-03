@@ -26,6 +26,8 @@ class ListingUpdate(BaseModel):
     language: str | None = None
     title: str | None = None
     description: str | None = None
+    # Chaîne vide = "aucune variante" explicite (à distinguer de None = inchangé).
+    variant: str | None = None
 
 
 def _sanitize_filename(name: str) -> str:
@@ -53,6 +55,7 @@ def _serialize_listing(cursor: sqlite3.Cursor, row: sqlite3.Row) -> dict:
         "condition": row["condition"],
         "price": row["price"],
         "language": row["language"],
+        "variant": row["variant"],
         "title": row["title"],
         "description": row["description"],
     }
@@ -148,11 +151,13 @@ def update_listing(photo_id: str, crop_filename: str, update: ListingUpdate):
             "language": update.language if update.language is not None else existing["language"],
             "title": update.title if update.title is not None else existing["title"],
             "description": update.description if update.description is not None else existing["description"],
+            "variant": update.variant if update.variant is not None else existing["variant"],
         }
 
         cursor.execute(
             """
-            UPDATE listings SET card_id=?, condition=?, price=?, language=?, title=?, description=?, updated_at=?
+            UPDATE listings SET card_id=?, condition=?, price=?, language=?, title=?, description=?,
+                                variant=?, updated_at=?
             WHERE photo_id=? AND crop_filename=?
             """,
             (
@@ -162,6 +167,7 @@ def update_listing(photo_id: str, crop_filename: str, update: ListingUpdate):
                 merged["language"],
                 merged["title"],
                 merged["description"],
+                merged["variant"] or None,
                 datetime.now(timezone.utc).isoformat(),
                 photo_id,
                 crop_filename,
@@ -196,6 +202,7 @@ def regenerate_listing(photo_id: str, crop_filename: str):
             dict(card),
             condition=listing["condition"],
             language=listing["language"],
+            variant=listing["variant"],
         )
 
         cursor.execute(

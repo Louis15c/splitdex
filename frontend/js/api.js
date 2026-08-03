@@ -115,6 +115,15 @@ export async function getConditions() {
   return conditionsCache;
 }
 
+let variantsCache = null;
+export async function getVariants() {
+  if (!variantsCache) {
+    const response = await fetch("/api/reference/variants");
+    variantsCache = await jsonOrThrow(response, "Variantes indisponibles");
+  }
+  return variantsCache;
+}
+
 export async function getDbStatus() {
   const response = await fetch("/api/reference/status");
   return jsonOrThrow(response, "Base injoignable"); // { cached_cards }

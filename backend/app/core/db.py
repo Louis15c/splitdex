@@ -52,6 +52,11 @@ MIGRATIONS = [
     ("identifications", "language", "TEXT"),
     ("listings", "language", "TEXT"),
     ("reference_cards", "series", "TEXT"),
+    # Variante choisie à la main (holo, reverse holo...) : pokemontcg.io ne
+    # décrit pas ces finitions et elles ne se détectent pas de façon fiable sur
+    # photo (le foil ne se voit que sous le bon angle). NULL = on s'en remet à
+    # la rareté du catalogue.
+    ("listings", "variant", "TEXT"),
 ]
 
 

@@ -22,6 +22,12 @@ SQLITE_PATH = DB_DIR / "splitdex.sqlite3"
 DEFAULT_LISTING_CONDITION = "Très bon état"
 # Catégories réelles de l'état Vinted (constaté sur de vraies annonces).
 LISTING_CONDITIONS = ["Neuf", "Très bon état", "Bon état", "Satisfaisant"]
+# Finitions proposées dans la fiche, telles qu'elles s'écrivent dans le titre et
+# la description ("Lucanon reverse holo 66/217..."). Choisies à la main : le
+# catalogue ne décrit pas ces variantes, et le foil ne se détecte pas de façon
+# fiable sur photo (il ne se voit que sous le bon angle de lumière). "" = ne
+# rien mentionner, et laisser la rareté du catalogue décider.
+LISTING_VARIANTS = ["", "holo", "reverse holo", "full art", "promo"]
 # Phrase insérée dans la description pour chaque état, ex: "carte en bon état".
 CONDITION_PHRASES = {
     "Neuf": "état neuf",

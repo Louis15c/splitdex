@@ -1,6 +1,6 @@
 from fastapi import APIRouter, Query
 
-from app.core.config import LISTING_CONDITIONS
+from app.core.config import LISTING_CONDITIONS, LISTING_VARIANTS
 from app.core.db import db_cursor
 from app.core.pokemon_names_fr import (
     POKEMON_NAME_EN_BY_NORMALIZED_FR,
@@ -27,6 +27,13 @@ def reference_status():
 @router.get("/conditions")
 def list_conditions():
     return LISTING_CONDITIONS
+
+
+@router.get("/variants")
+def list_variants():
+    """Finitions proposées dans la fiche (holo, reverse holo...) — voir
+    LISTING_VARIANTS : elles se renseignent à la main, carte en main."""
+    return LISTING_VARIANTS
 
 
 @router.get("/search")

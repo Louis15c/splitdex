@@ -10,6 +10,7 @@ const session = sessionId ? getSession(sessionId) : null;
 const root = document.getElementById("session-root");
 
 let conditions = ["Très bon état"];
+let variants = ["", "holo", "reverse holo", "full art", "promo"];
 let processing = false;
 let cancelRequested = false;
 let scanAbort = null; // AbortController du scan en cours (pour l'annulation)
@@ -41,6 +42,9 @@ let headerEls;
 async function init() {
   try {
     conditions = await api.getConditions();
+  } catch { /* défaut conservé */ }
+  try {
+    variants = await api.getVariants();
   } catch { /* défaut conservé */ }
 
   headerEls = renderHeader();
@@ -389,6 +393,20 @@ function makeCardBlock(photoId, crop) {
     const condSelect = selectField("État", conditions.map((c) => ({ value: c, label: c })),
       listing.condition ?? "", (v) => save({ condition: v }));
 
+    // Finition : contrairement à l'état ou au prix, elle n'existe QUE dans le
+    // texte — on régénère donc tout de suite, sinon le choix resterait sans
+    // effet visible tant qu'on n'a pas cliqué « Régénérer le texte ».
+    const variantSelect = selectField(
+      "Finition",
+      variants.map((v) => ({ value: v, label: v === "" ? "— aucune —" : v })),
+      listing.variant ?? "",
+      async (v) => {
+        await save({ variant: v });
+        try { setListing(await api.regenerateListing(photoId, crop.filename)); }
+        catch (err) { alert(err.message); }
+      },
+    );
+
     const priceInput = el("input", { attrs: { type: "number", step: "0.5", min: "0", placeholder: "€" } });
     priceInput.value = listing.price ?? "";
     priceInput.addEventListener("change", () => {
@@ -421,7 +439,7 @@ function makeCardBlock(photoId, crop) {
       priceNote,
     ]);
 
-    body.append(el("div", { class: "cb-fields" }, [langSelect, condSelect, priceField]));
+    body.append(el("div", { class: "cb-fields" }, [langSelect, condSelect, variantSelect, priceField]));
 
     // Textes (repliés par défaut pour la compacité sur demi-écran).
     const titleArea = textField("Titre", listing.title, 2, (v) => save({ title: v }));

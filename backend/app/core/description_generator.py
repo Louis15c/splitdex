@@ -54,6 +54,7 @@ def generate_listing_text(
     card: dict,
     condition: str | None = None,
     language: str | None = None,
+    variant: str | None = None,
 ) -> dict:
     """`card` attend les clés name, set_name, series, number, printed_total,
     rarity (celles stockées dans `reference_cards`).
@@ -80,7 +81,11 @@ def generate_listing_text(
     name = translate_card_name_to_fr(card.get("name"))
     set_name_fr = translate_set_name(card.get("set_name"), card.get("set_id"))
     series_fr = translate_series(card.get("series"))
-    variant = rarity_display(card.get("rarity"))
+    # Variante choisie à la main si elle existe : elle décrit la FINITION réelle
+    # de l'exemplaire (holo, reverse holo), que le catalogue ignore — seul le
+    # vendeur, carte en main, peut la constater. Sinon on retombe sur ce que la
+    # rareté permet de déduire.
+    variant = variant or rarity_display(card.get("rarity"))
 
     # Le set de base d'une série porte souvent le même nom que la série elle-
     # même (ex: set "Scarlet & Violet" dans la série "Scarlet & Violet") : sans
