@@ -55,6 +55,22 @@
     details.more ul { color: var(--dim); font-weight: 600; font-size: 13.5px; line-height: 1.7; margin: 8px 0 0 18px; }
     details.more b { color: var(--ink); }
 
+    .republish { margin-top: 34px; }
+    .republish h2 { font-family: var(--font-head); font-weight: 600; font-size: 19px; }
+    .republish .sub { color: var(--dim); font-weight: 600; font-size: 13.5px; line-height: 1.6; margin: 6px 0 14px; max-width: 64ch; }
+    .republish .sub b { color: var(--ink); }
+    .rp-card { padding: 15px 17px; }
+    .rp-head { display: flex; align-items: flex-start; gap: 12px; }
+    .rp-meta .t { font-family: var(--font-head); font-weight: 600; font-size: 15.5px; }
+    .rp-meta .d { color: var(--dim); font-weight: 700; font-size: 12.5px; margin-top: 3px; }
+    .rp-photos { display: flex; gap: 7px; flex-wrap: wrap; margin-top: 12px; }
+    .rp-photos img { width: 62px; height: 62px; object-fit: cover; border-radius: 9px; border: 2px solid var(--border); background: var(--card-2); }
+    .rp-warn { color: var(--gold); font-weight: 700; font-size: 12.5px; margin-top: 9px; }
+    .rp-actions { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; margin-top: 13px; }
+    .rp-actions a.chip-btn { text-decoration: none; }
+    .rp-empty { padding: 26px 20px; text-align: center; color: var(--dim); font-weight: 600; }
+    .rp-empty .sub { color: var(--faint); font-size: 13px; margin-top: 6px; }
+
     .dock-note { margin-top: 26px; padding: 18px 20px; }
     .dock-note h3 { font-family: var(--font-head); font-weight: 600; font-size: 16px; display: flex; align-items: center; gap: 9px; }
     .dock-note h3 img { width: 26px; height: 26px; border-radius: 7px; }
@@ -138,6 +154,12 @@
         </ul>
       </div>
     </details>
+
+    <section class="republish">
+      <h2>Republier une annonce</h2>
+      <p class="sub">Sur Vinted, ouvrez une de vos annonces et cliquez sur <b>« ♻️ Reprendre dans Splitdex »</b> : son texte et ses photos (recadrées) arrivent ici, prêts à repartir. Vous republiez vous-même.</p>
+      <div id="republish-list" class="stack"></div>
+    </section>
 
     <div class="clay dock-note">
       <h3><img src="/static/apple-touch-icon.png" alt="" />Splitdex comme application Mac</h3>

@@ -8,6 +8,7 @@ from app.api.crops import router as crops_router
 from app.api.identify import router as identify_router
 from app.api.listings import router as listings_router
 from app.api.reference import router as reference_router
+from app.api.republish import router as republish_router
 from app.api.uploads import router as uploads_router
 from app.api.vinted import router as vinted_router
 from app.core.config import FRONTEND_DIR, REFERENCE_THUMBNAILS_DIR, UPLOADS_DIR
@@ -45,6 +46,7 @@ app.include_router(identify_router)
 app.include_router(reference_router)
 app.include_router(listings_router)
 app.include_router(vinted_router)
+app.include_router(republish_router)
 
 # Photos uploadées, servies telles quelles pour prévisualisation
 app.mount("/uploads", StaticFiles(directory=UPLOADS_DIR), name="uploads")

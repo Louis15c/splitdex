@@ -66,10 +66,12 @@ LOADER_TEMPLATE = """\
 // ==UserScript==
 // @name         Splitdex → Vinted (remplissage du formulaire)
 // @namespace    splitdex
-// @version      2.0
-// @description  Bouton "Remplir depuis Splitdex" sur la page Vendre de Vinted. La logique de remplissage est téléchargée fraîche depuis le serveur Splitdex à chaque clic (aucune réinstallation lors des mises à jour). Aucune publication automatique.
+// @version      3.0
+// @description  Deux boutons, selon la page : "Remplir depuis Splitdex" sur la page Vendre, et "Reprendre dans Splitdex" sur une de vos annonces (pour la republier sans tout ressaisir). La logique est téléchargée fraîche depuis le serveur Splitdex à chaque clic. Aucune publication automatique.
 // @match        https://www.vinted.fr/items/new*
 // @match        https://www.vinted.fr/*/items/new*
+// @match        https://www.vinted.fr/items/*
+// @match        https://www.vinted.fr/*/items/*
 // @grant        GM_xmlhttpRequest
 // @connect      __SPLITDEX_HOSTNAME__
 // ==/UserScript==
@@ -92,8 +94,14 @@ LOADER_TEMPLATE = """\
     setTimeout(() => toast.remove(), 8000);
   }
 
+  // Deux usages selon la page : remplir un formulaire vierge, ou reprendre une
+  // annonce existante pour la republier. Le second n'a de sens que sur la fiche
+  // d'une annonce déjà publiée.
+  const isNewListing = /\/items\/new/.test(location.pathname);
+  const CORE_URL = isNewListing ? "/vinted-autofill-core.js" : "/vinted-capture-core.js";
+
   const button = document.createElement("button");
-  button.textContent = "📋 Remplir depuis Splitdex";
+  button.textContent = isNewListing ? "📋 Remplir depuis Splitdex" : "♻️ Reprendre dans Splitdex";
   Object.assign(button.style, {
     position: "fixed", bottom: "20px", right: "20px", zIndex: 99999,
     background: "#0f766e", color: "white", border: "none",
@@ -106,7 +114,7 @@ LOADER_TEMPLATE = """\
     GM_xmlhttpRequest({
       method: "GET",
       // cache-buster : toujours la dernière version de la logique
-      url: SPLITDEX_ORIGIN + "/vinted-autofill-core.js?ts=" + Date.now(),
+      url: SPLITDEX_ORIGIN + CORE_URL + "?ts=" + Date.now(),
       onload: function (response) {
         button.disabled = false;
         if (response.status !== 200) {
@@ -578,6 +586,100 @@ CORE_TEMPLATE = """\
 })();
 """
 
+
+
+# Logique de REPRISE d'une annonce existante (bouton "Reprendre dans Splitdex").
+# Lue depuis la page de l'annonce, dans la session de l'utilisateur : ce sont ses
+# propres données, sur son propre compte. Rien n'est publié ni modifié côté
+# Vinted — la fiche est simplement copiée dans Splitdex pour être republiée à la
+# main ensuite.
+CAPTURE_TEMPLATE = """\
+(function () {
+  "use strict";
+
+  const SPLITDEX_ORIGIN = "__SPLITDEX_ORIGIN__";
+
+  function toast(message, isError) {
+    const box = document.createElement("div");
+    box.textContent = message;
+    Object.assign(box.style, {
+      position: "fixed", bottom: "80px", right: "20px", zIndex: 99999,
+      background: isError ? "#b91c1c" : "#166534", color: "white",
+      padding: "10px 16px", borderRadius: "8px", fontSize: "14px",
+      maxWidth: "360px", whiteSpace: "pre-line",
+      boxShadow: "0 4px 12px rgba(0,0,0,0.25)",
+    });
+    document.body.append(box);
+    setTimeout(() => box.remove(), 9000);
+  }
+
+  const itemId = (location.pathname.match(/\\/items\\/(\\d+)/) || [])[1];
+  if (!itemId) {
+    toast("Splitdex — ouvre la page d'une de tes annonces pour la reprendre.", true);
+    return;
+  }
+
+  function textOf(selectors) {
+    for (const selector of selectors) {
+      const node = document.querySelector(selector);
+      if (node && node.textContent.trim()) return node.textContent.trim();
+    }
+    return "";
+  }
+
+  // L'API de Vinted répond dans la session courante (compte de l'utilisateur) et
+  // donne des données propres ; en cas d'échec on retombe sur le DOM affiché.
+  fetch("/api/v2/items/" + itemId, { credentials: "include" })
+    .then((response) => (response.ok ? response.json() : null))
+    .catch(() => null)
+    .then((payload) => {
+      const item = (payload && (payload.item || payload)) || {};
+      const photos = (item.photos || [])
+        .map((photo) => photo.full_size_url || photo.url || photo.image_url)
+        .filter(Boolean);
+
+      const listing = {
+        title: item.title || textOf(["h1", '[data-testid="item-page-title"]']),
+        description: item.description || textOf(['[itemprop="description"]', '[data-testid*="description"]']),
+        price: item.price && item.price.amount ? parseFloat(item.price.amount)
+             : (item.price ? parseFloat(item.price) : null),
+        condition: item.status || null,
+        photo_urls: photos,
+        source_url: location.href,
+      };
+
+      if (!listing.title) {
+        toast("Splitdex — impossible de lire cette annonce (page inattendue).", true);
+        return;
+      }
+
+      GM_xmlhttpRequest({
+        method: "POST",
+        url: SPLITDEX_ORIGIN + "/api/republish",
+        headers: { "Content-Type": "application/json" },
+        data: JSON.stringify(listing),
+        onload: function (response) {
+          if (response.status !== 200) {
+            toast("Splitdex — reprise refusée (HTTP " + response.status + ")", true);
+            return;
+          }
+          let saved = 0;
+          try { saved = (JSON.parse(response.responseText).photos || []).length; } catch (e) {}
+          toast(
+            "Annonce reprise dans Splitdex.\\n" + saved + " photo(s) recadrée(s).\\n" +
+            "Ouvre l'onglet Vinted de Splitdex pour la republier.",
+            false
+          );
+        },
+        onerror: function () {
+          toast("Splitdex injoignable (" + SPLITDEX_ORIGIN + ")", true);
+        },
+      });
+    });
+})();
+"""
+
+
 NO_STORE_HEADERS = {"Cache-Control": "no-store, max-age=0"}
 
 
@@ -606,3 +708,15 @@ async def userscript_core(request: Request):
         "__CORE_VERSION__", CORE_VERSION
     )
     return PlainTextResponse(script, media_type="text/javascript; charset=utf-8", headers=NO_STORE_HEADERS)
+
+
+
+@router.get("/vinted-capture-core.js", response_class=PlainTextResponse)
+async def userscript_capture(request: Request):
+    """Logique de reprise d'une annonce existante, rechargée à chaque clic."""
+    origin, _ = _origin_and_hostname(request)
+    return PlainTextResponse(
+        CAPTURE_TEMPLATE.replace("__SPLITDEX_ORIGIN__", origin),
+        media_type="text/javascript; charset=utf-8",
+        headers=NO_STORE_HEADERS,
+    )

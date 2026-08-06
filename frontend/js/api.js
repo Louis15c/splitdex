@@ -115,6 +115,20 @@ export async function getConditions() {
   return conditionsCache;
 }
 
+export async function getRepublished() {
+  const response = await fetch("/api/republish");
+  return jsonOrThrow(response, "Annonces reprises indisponibles");
+}
+
+export async function deleteRepublished(id) {
+  const response = await fetch(`/api/republish/${id}`, { method: "DELETE" });
+  return jsonOrThrow(response, "Suppression impossible");
+}
+
+export function republishPhotosUrl(id) {
+  return `/api/republish/${id}/photos.zip`;
+}
+
 let variantsCache = null;
 export async function getVariants() {
   if (!variantsCache) {

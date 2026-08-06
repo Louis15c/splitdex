@@ -52,6 +52,13 @@ CONDITION_PHRASES = {
 # à adapter si le pseudo Vinted change.
 SHOP_HASHTAG = "tonio28"
 
+# Annonces reprises depuis Vinted pour être republiées (photos + texte).
+REPUBLISH_DIR = DATA_DIR / "republish"
+# Recadrage appliqué aux photos reprises, en fraction de chaque côté : 2% rogne
+# les bords sans toucher au sujet. C'est une retouche de cadrage ordinaire,
+# ajustable ou désactivable (0) depuis la fiche.
+REPUBLISH_CROP_RATIO = 0.02
+
 ALLOWED_IMAGE_TYPES = {"image/jpeg", "image/png", "image/webp"}
 MAX_UPLOAD_SIZE_BYTES = 25 * 1024 * 1024  # 25 MB
 # Nombre maximum de photos par envoi (cas d'usage : une rafale de photos de
