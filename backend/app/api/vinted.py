@@ -255,6 +255,12 @@ CORE_TEMPLATE = """\
     ],
   };
 
+  // Échappe un libellé pour l'insérer dans une expression régulière : les noms
+  // de catégorie contiennent parenthèses, points et apostrophes.
+  function escapeRegExp(text) {
+    return text.replace(/[-\\/\\\\^$*+?.()|[\\]{}]/g, "\\\\$&");
+  }
+
   function findField(selectors) {
     for (const selector of selectors) {
       const el = document.querySelector(selector);
@@ -358,7 +364,15 @@ CORE_TEMPLATE = """\
     /^divertissement$/i,
   ];
 
-  async function selectCategory() {
+  async function selectCategory(customPath) {
+    // Republication : on suit la catégorie de l'annonce d'origine. Sans elle on
+    // retombe sur l'arborescence des cartes Pokémon, ce qui rangeait n'importe
+    // quel article (un manga !) dans "Cartes à collectionner".
+    const stepPatterns = (customPath && customPath.length)
+      ? customPath.slice().reverse().map(
+          (label) => new RegExp("^" + escapeRegExp(label) + "$", "i"))
+      : CATEGORY_STEP_PATTERNS;
+    const leafPattern = stepPatterns[0];
     const trigger = findField(FIELD_SELECTORS.category);
     if (!trigger) {
       debugLog("catégorie : champ déclencheur introuvable");
@@ -375,7 +389,7 @@ CORE_TEMPLATE = """\
     let leafClicked = false;
     for (let step = 0; step < 6; step++) {
       const cell = await waitFor(() => {
-        for (const pattern of CATEGORY_STEP_PATTERNS) {
+        for (const pattern of stepPatterns) {
           const found = findCellByText(pattern, alreadyClicked);
           if (found) return found;
         }
@@ -391,7 +405,7 @@ CORE_TEMPLATE = """\
       alreadyClicked.add(cell);
       simulateClick(cell);
       await sleep(600);
-      if (CATEGORY_LEAF_PATTERN.test(cellText)) {
+      if (leafPattern.test(cellText)) {
         // Feuille cible atteinte : surtout ne pas continuer la boucle, le
         // niveau reste affiché et un autre libellé proche serait cliqué
         // par-dessus la bonne sélection.
@@ -415,7 +429,8 @@ CORE_TEMPLATE = """\
     return leafClicked && filled !== null;
   }
 
-  async function selectBrand() {
+  async function selectBrand(brandName) {
+    const wanted = brandName || "Pokémon";
     // Le champ marque n'existe qu'une fois la catégorie choisie (relevé
     // réel : absent du formulaire initial) — on attend son apparition.
     const trigger = await waitFor(() => findField(FIELD_SELECTORS.brand), 5000);
@@ -438,15 +453,16 @@ CORE_TEMPLATE = """\
     }
 
     if (trigger.tagName === "INPUT") {
-      setNativeValue(trigger, "Pokémon");
+      setNativeValue(trigger, wanted);
     } else {
       const search = document.querySelector('input[placeholder*="marque" i], input[type="search"]');
-      if (search) setNativeValue(search, "Pokémon");
+      if (search) setNativeValue(search, wanted);
     }
 
-    const cell = await waitFor(() => findCellByText(/^pok[ée]mon$/i, null), 4000);
+    const brandPattern = new RegExp("^" + escapeRegExp(wanted) + "$", "i");
+    const cell = await waitFor(() => findCellByText(brandPattern, null), 4000);
     if (!cell) {
-      debugLog("marque : entrée « Pokémon » introuvable - entrées visibles :",
+      debugLog("marque : entrée « " + wanted + " » introuvable - entrées visibles :",
         visibleCells().slice(0, 10).map((c) => (c.textContent || "").trim()).join(" | "));
       return false;
     }
@@ -535,6 +551,7 @@ CORE_TEMPLATE = """\
   }
 
   async function fillForm(listing) {
+    const isRepublish = SOURCE_PATH.indexOf("republish") !== -1;
     const filled = [];
     const missing = [];
 
@@ -553,19 +570,28 @@ CORE_TEMPLATE = """\
 
     // ...puis les menus, dans l'ordre imposé par Vinted (marque/état/colis
     // n'apparaissent qu'après le choix de la catégorie)...
-    if (await selectCategory()) filled.push("catégorie");
+    if (await selectCategory(listing.category_path)) filled.push("catégorie");
     else missing.push("catégorie");
 
-    if (await selectBrand()) filled.push("marque");
-    else missing.push("marque");
+    // En republication, la marque n'est reprise que si l'annonce d'origine en
+    // portait une : forcer "Pokémon" sur un article quelconque serait faux.
+    const wantedBrand = listing.brand || (isRepublish ? null : "Pokémon");
+    if (wantedBrand) {
+      if (await selectBrand(wantedBrand)) filled.push("marque");
+      else missing.push("marque");
+    }
 
     if (listing.condition) {
       if (await selectCondition(listing.condition)) filled.push("état (" + listing.condition + ")");
       else missing.push("état");
     }
 
-    if (await selectPackageSize()) filled.push("taille du colis (Petit)");
-    else missing.push("taille du colis");
+    // Taille du colis : "Petit" vaut pour une carte, pas pour un article
+    // quelconque — on ne la force donc pas en republication.
+    if (!isRepublish) {
+      if (await selectPackageSize()) filled.push("taille du colis (Petit)");
+      else missing.push("taille du colis");
+    }
 
     // ...et le prix EN DERNIER : la sélection de la catégorie fait
     // ré-afficher le formulaire et effaçait un prix rempli trop tôt
@@ -662,45 +688,36 @@ CAPTURE_TEMPLATE = '''(function () {
     return "";
   }
 
-  // Les photos affichées sont servies par le CDN de Vinted. Leur URL porte un
-  // segment de taille ("/310x430/", "/f800/") : on demande la plus grande
-  // version disponible plutôt que la vignette de la galerie.
-  function fullSize(url) {
-    return url
-      .replace(/\\/\\d+x\\d+\\//, "/f800/")
-      .replace(/\\/thumb\\//, "/f800/");
-  }
-
-  // On fouille le HTML BRUT plutôt que les seules balises <img> affichées : la
-  // galerie charge ses images à la demande, et n'attendre que celles rendues
-  // obligeait à faire défiler l'annonce avant de la reprendre. Les URLs des
-  // autres photos sont pourtant déjà dans la page (données embarquées, srcset,
-  // attributs de préchargement).
+  // Les URLs du CDN Vinted sont SIGNÉES ("?s=...") et la signature vaut pour UNE
+  // taille précise : ni la retirer, ni réécrire le segment de taille — le
+  // téléchargement serait refusé. On prend donc l'URL la plus grande telle
+  // qu'elle figure déjà dans la page.
+  //
+  // Distinguer les photos de l'annonce de l'avatar du vendeur : l'avatar est
+  // décliné en formats CARRÉS (310x310, 150x150...), les photos d'annonce en
+  // portrait (310x430, 70x100...).
   function photosFromPage() {
-    const seen = new Set();
-    const urls = [];
-    const add = (raw) => {
-      if (!raw) return;
-      const url = fullSize(raw.split("?")[0]);
-      // Les vignettes minuscules (avatars, pictos) portent leur taille dans
-      // l'URL : on ne garde que les formats de photo d'annonce.
-      if (/\/\d{1,3}x\d{1,3}\//.test(url) && !/\/f800\//.test(url)) return;
-      if (!seen.has(url)) { seen.add(url); urls.push(url); }
-    };
-
     const html = document.documentElement.innerHTML;
-    const pattern = /https:\/\/[\w.-]*vinted\.net\/[^"'\\\s<>)]+\.(?:jpe?g|png|webp)/gi;
+    const pattern = /https:\/\/[\w.-]*vinted\.net\/[^"'\\\s<>)]+/gi;
+    const photos = new Map();
     let match;
-    while ((match = pattern.exec(html)) !== null) add(match[0]);
+    while ((match = pattern.exec(html)) !== null) {
+      const url = match[0];
+      const parts = url.split("?")[0].match(/\/(?:t|tc)\/([^/]+)\/(?:([^/]+)\/)?([^/]+)$/);
+      if (!parts) continue;
+      const key = parts[1] + "/" + parts[3];
+      const size = parts[2] || "";
+      const square = /^(\d+)x(\d+)$/.exec(size);
 
-    // Complément : ce qui est réellement rendu, si une URL n'existe que là.
-    for (const img of document.querySelectorAll("img")) {
-      const width = img.naturalWidth || img.width || 0;
-      if (width && width < 200) continue;
-      const raw = img.currentSrc || img.src || "";
-      if (/vinted\.net/.test(raw)) add(raw);
+      const entry = photos.get(key) || { isAvatar: false, best: null, score: -1 };
+      if (square && square[1] === square[2]) entry.isAvatar = true;
+      // f800 est le plus grand format proposé ; sinon on classe par surface.
+      const score = size === "f800" ? Infinity
+                  : (square ? parseInt(square[1], 10) * parseInt(square[2], 10) : 0);
+      if (score > entry.score) { entry.score = score; entry.best = url; }
+      photos.set(key, entry);
     }
-    return urls;
+    return [...photos.values()].filter((e) => !e.isAvatar && e.best).map((e) => e.best);
   }
 
   function priceFromPage() {
@@ -766,8 +783,19 @@ CAPTURE_TEMPLATE = '''(function () {
         ? parseFloat(item.price.amount)
         : (typeof item.price === "number" ? item.price : priceFromPage());
 
+      // Catégorie et marque de l'annonce d'origine : sans elles, la
+      // republication réappliquait la catégorie des cartes Pokémon à n'importe
+      // quel article (un manga s'est retrouvé en "Cartes à collectionner").
+      const breadcrumb = [...document.querySelectorAll(
+        '[class*="breadcrumb"] a, nav[aria-label*="fil"] a, ol li a'
+      )].map((a) => (a.textContent || "").trim())
+        .filter((label) => label && label.length < 60 && !/^accueil$/i.test(label));
+
       send({
         title: item.title || textOf(["h1", '[data-testid="item-page-title"]']),
+        category_path: (item.category_path || breadcrumb).slice(-4),
+        brand: (item.brand_dto && item.brand_dto.title) || item.brand
+               || textOf(['[data-testid*="brand"]', '[itemprop="brand"]']) || null,
         description: item.description || textOf([
           '[itemprop="description"]',
           '[data-testid*="description"]',

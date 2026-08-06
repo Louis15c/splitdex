@@ -45,6 +45,10 @@ class CapturedListing(BaseModel):
     condition: str | None = None
     photo_urls: list[str] = []
     source_url: str | None = None
+    # Catégorie et marque de l'annonce d'origine : la republication doit les
+    # reprendre telles quelles, l'article n'étant pas forcément une carte.
+    category_path: list[str] = []
+    brand: str | None = None
 
 
 def _entry_dir(entry_id: str):
@@ -110,6 +114,8 @@ def capture_listing(listing: CapturedListing):
         "price": listing.price,
         "condition": listing.condition,
         "source_url": listing.source_url,
+        "category_path": listing.category_path,
+        "brand": listing.brand,
         "photos": saved,
         "photos_requested": len(listing.photo_urls),
         "captured_at": datetime.now(timezone.utc).isoformat(),
@@ -148,6 +154,8 @@ def latest_captured():
         "description": entry.get("description", ""),
         "price": entry.get("price"),
         "condition": entry.get("condition"),
+        "category_path": entry.get("category_path") or [],
+        "brand": entry.get("brand"),
         "photos": entry.get("photos", []),
         "id": entry.get("id"),
     }
