@@ -170,7 +170,7 @@ LOADER_TEMPLATE = """\
 """
 
 
-CORE_VERSION = "3.3"
+CORE_VERSION = "3.4"
 
 CORE_TEMPLATE = """\
 (function () {
@@ -424,20 +424,43 @@ CORE_TEMPLATE = """\
         setNativeValue(search, leafLabel);
         await sleep(900);
 
-        // Entrées de premier niveau : ce sont celles d'avant la recherche, pas
-        // des résultats — les écarter évite de cliquer "Femmes" par défaut.
-        const TOP_LEVEL = /^(femmes|hommes|enfants|maison|électronique|divertissement|articles|animaux)$/i;
+        // Les résultats se cherchent DANS le panneau du sélecteur. Balayer toute
+        // la page faisait retenir la zone de dépôt des photos, qui n'a rien à
+        // voir avec la catégorie. On remonte donc depuis le champ jusqu'au
+        // premier conteneur qui regroupe plusieurs entrées : c'est la liste.
+        const panelOf = (node) => {
+          let box = node.parentElement;
+          while (box && box !== document.body) {
+            if (box.querySelectorAll(".web_ui__Cell__cell").length >= 2) return box;
+            box = box.parentElement;
+          }
+          return null;
+        };
+        const panel = panelOf(search);
+        // Éléments de l'interface qui ne sont pas des catégories proposées.
+        const NOISE = /(déposer les fichiers|ajoute des photos|vendeur professionnel|code de la consommation|^prix$|^articles$|^femmes$|^hommes$|^enfants$|^maison$|^électronique$|^divertissement$|^animaux$)/i;
+        // Une proposition d'autant plus probable qu'elle reprend les mots tapés.
+        const words = leafLabel.toLowerCase().split(/\s+/).filter((w) => w.length > 2);
+        const score = (label) => words.filter((w) => label.toLowerCase().includes(w)).length;
+
         const result = await waitFor(() => {
-          const exact = findCellByText(leafPattern, null);
-          if (exact) return exact;
-          const loose = loosePatterns.length ? findCellByText(loosePatterns[0], null) : null;
-          if (loose) return loose;
-          const proposals = visibleCells().filter((cell) => {
+          const scope = panel || document;
+          const proposals = Array.from(scope.querySelectorAll(".web_ui__Cell__cell")).filter((cell) => {
             const label = (cell.textContent || "").trim();
-            return label && label.length < 80 && !TOP_LEVEL.test(label);
+            return cell.offsetParent !== null && label && label.length < 90 && !NOISE.test(label);
           });
-          return proposals[0] || null;
-        }, 3000);
+          if (!proposals.length) return null;
+          proposals.sort((a, b) => score((b.textContent || "").trim()) - score((a.textContent || "").trim()));
+          // Aucun mot en commun : la liste n'est probablement pas encore à jour.
+          return score((proposals[0].textContent || "").trim()) > 0 ? proposals[0] : null;
+        }, 3500);
+
+        if (!result) {
+          debugLog("catégorie : propositions du panneau :",
+            Array.from((panel || document).querySelectorAll(".web_ui__Cell__cell"))
+              .filter((c) => c.offsetParent !== null)
+              .slice(0, 12).map((c) => (c.textContent || "").trim()).join(" | "));
+        }
 
         if (result) {
           debugLog("catégorie : «", (result.textContent || "").trim(), "» retenue pour «", leafLabel, "»");
