@@ -170,7 +170,7 @@ LOADER_TEMPLATE = """\
 """
 
 
-CORE_VERSION = "3.2"
+CORE_VERSION = "3.3"
 
 CORE_TEMPLATE = """\
 (function () {
@@ -395,12 +395,30 @@ CORE_TEMPLATE = """\
     // catégorie et prendre la première proposition contourne le problème.
     if (customPath && customPath.length) {
       const leafLabel = customPath[customPath.length - 1];
-      // Le champ n'existe qu'une fois le panneau rendu : on l'attend, et on
-      // l'accepte sous ses différentes formes d'attribut.
-      const search = await waitFor(() => document.querySelector(
-        '[data-testid="catalog-search-input"], input[name="catalog-search-input"], ' +
-        '#catalog-search-input, input[placeholder*="catégorie" i]'
-      ), 2500);
+      // Recherche structurelle du champ. Viser un attribut exact a échoué :
+      // « catalog-search-input » peut désigner l'ENVELOPPE et non le champ
+      // lui-même, auquel cas aucun sélecteur d'input ne le trouve. On part donc
+      // du porteur de l'identifiant et on descend jusqu'au champ saisissable.
+      const findSearchField = () => {
+        for (const holder of document.querySelectorAll('[data-testid*="catalog"], [id*="catalog"], [name*="catalog"]')) {
+          const field = holder.matches("input, textarea") ? holder : holder.querySelector("input, textarea");
+          if (field && field !== trigger && field.offsetParent !== null) return field;
+        }
+        // Dernier recours : le seul champ saisissable visible qui ne soit ni le
+        // déclencheur, ni la recherche du site, ni un champ de l'annonce.
+        return Array.from(document.querySelectorAll('input[type="text"], input[type="search"], input:not([type]), textarea')).find((f) => {
+          const tag = (f.getAttribute("data-testid") || "") + " " + f.id + " " + f.name;
+          return f !== trigger && f.offsetParent !== null && !/search-text|title|titre|price|prix|descri/i.test(tag);
+        }) || null;
+      };
+      const search = await waitFor(findSearchField, 2500);
+      if (!search) {
+        debugLog("catégorie : aucun champ saisissable - champs présents :",
+          Array.from(document.querySelectorAll("input, textarea")).map((f) =>
+            [f.tagName.toLowerCase(), f.getAttribute("data-testid"), f.id, f.name, f.placeholder,
+             f.offsetParent !== null ? "visible" : "caché"].filter(Boolean).join("/")
+          ).join(" | "));
+      }
       if (search && search !== trigger) {
         search.focus();
         setNativeValue(search, leafLabel);
