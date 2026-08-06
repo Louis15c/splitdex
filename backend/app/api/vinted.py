@@ -170,7 +170,7 @@ LOADER_TEMPLATE = """\
 """
 
 
-CORE_VERSION = "3.1"
+CORE_VERSION = "3.2"
 
 CORE_TEMPLATE = """\
 (function () {
@@ -388,32 +388,55 @@ CORE_TEMPLATE = """\
       return false;
     }
 
-    // Raccourci : si le sélecteur propose une recherche, on y tape directement
-    // la catégorie finale. L'arborescence du formulaire de vente ne reprend pas
-    // les mêmes libellés que le fil d'ariane d'une annonce (le premier niveau
-    // manque souvent), ce qui faisait échouer la navigation pas à pas.
+    // Raccourci par la recherche du sélecteur. L'arborescence du formulaire de
+    // vente (Femmes, Hommes, Enfants, Maison, Électronique, Divertissement) ne
+    // recoupe pas le fil d'ariane d'une annonce, qui commence plus bas : la
+    // navigation pas à pas échoue donc dès le premier niveau. Taper le nom de la
+    // catégorie et prendre la première proposition contourne le problème.
     if (customPath && customPath.length) {
       const leafLabel = customPath[customPath.length - 1];
-      // Cible exacte : le sélecteur de catégorie a SON propre champ de
-      // recherche. Un sélecteur générique attrapait la recherche globale du
-      // site (`search-text--input`), où la saisie n'avait évidemment aucun effet.
-      const search = document.querySelector('[data-testid="catalog-search-input"]')
-        || document.querySelector('input[placeholder*="catégorie" i]');
+      // Le champ n'existe qu'une fois le panneau rendu : on l'attend, et on
+      // l'accepte sous ses différentes formes d'attribut.
+      const search = await waitFor(() => document.querySelector(
+        '[data-testid="catalog-search-input"], input[name="catalog-search-input"], ' +
+        '#catalog-search-input, input[placeholder*="catégorie" i]'
+      ), 2500);
       if (search && search !== trigger) {
+        search.focus();
         setNativeValue(search, leafLabel);
-        const hit = await waitFor(() => findCellByText(leafPattern, null), 2500)
-                 || await waitFor(() => findCellByText(loosePatterns[0], null), 1200);
-        if (hit) {
-          debugLog("catégorie : trouvée par recherche «", leafLabel, "»");
-          simulateClick(hit);
-          await sleep(500);
+        await sleep(900);
+
+        // Entrées de premier niveau : ce sont celles d'avant la recherche, pas
+        // des résultats — les écarter évite de cliquer "Femmes" par défaut.
+        const TOP_LEVEL = /^(femmes|hommes|enfants|maison|électronique|divertissement|articles|animaux)$/i;
+        const result = await waitFor(() => {
+          const exact = findCellByText(leafPattern, null);
+          if (exact) return exact;
+          const loose = loosePatterns.length ? findCellByText(loosePatterns[0], null) : null;
+          if (loose) return loose;
+          const proposals = visibleCells().filter((cell) => {
+            const label = (cell.textContent || "").trim();
+            return label && label.length < 80 && !TOP_LEVEL.test(label);
+          });
+          return proposals[0] || null;
+        }, 3000);
+
+        if (result) {
+          debugLog("catégorie : «", (result.textContent || "").trim(), "» retenue pour «", leafLabel, "»");
+          simulateClick(result.closest(".web_ui__Cell__cell") || result);
+          await sleep(600);
           const done = Array.from(document.querySelectorAll("button")).find(
             (b) => b.offsetParent !== null && /^(fait|terminé|valider)$/i.test((b.textContent || "").trim())
           );
           if (done) simulateClick(done);
           if (await waitFor(() => trigger.value.trim().length > 0, 2500)) return true;
+          debugLog("catégorie : clic effectué mais champ resté vide");
+        } else {
+          debugLog("catégorie : aucune proposition pour «", leafLabel, "» - visibles :",
+            visibleCells().slice(0, 12).map((c) => (c.textContent || "").trim()).join(" | "));
         }
-        debugLog("catégorie : recherche infructueuse pour «", leafLabel, "», navigation pas à pas");
+      } else {
+        debugLog("catégorie : champ de recherche introuvable dans le sélecteur");
       }
     }
 
@@ -752,27 +775,6 @@ CAPTURE_TEMPLATE = '''(function () {
     return "";
   }
 
-  // La galerie ne charge ses images qu'à l'approche du regard : sans un
-  // parcours préalable de la page, une seule photo figure dans le HTML au
-  // moment de la reprise. On déroule donc la page, puis on revient en haut.
-  function loadLazyImages() {
-    return new Promise((resolve) => {
-      const start = window.scrollY;
-      let position = 0;
-      const step = () => {
-        window.scrollTo(0, position);
-        position += window.innerHeight * 0.8;
-        if (position < document.body.scrollHeight) {
-          setTimeout(step, 220);
-        } else {
-          window.scrollTo(0, start);
-          setTimeout(resolve, 600);  // laisse les dernières images arriver
-        }
-      };
-      step();
-    });
-  }
-
   // Les URLs du CDN Vinted sont SIGNÉES ("?s=...") et la signature vaut pour UNE
   // taille précise : ni la retirer, ni réécrire le segment de taille — le
   // téléchargement serait refusé. On prend donc l'URL la plus grande telle
@@ -853,14 +855,10 @@ CAPTURE_TEMPLATE = '''(function () {
 
   // L'API de Vinted donne les données les plus propres quand elle répond ; sinon
   // on lit la page telle qu'elle est affichée, qui reflète toujours l'annonce.
-  // Le défilement n'a lieu QUE si la page ne livre pas déjà plusieurs photos :
-  // sur une annonce à une seule photo, ou dont la galerie est déjà chargée,
-  // dérouler toute la page sous les yeux de l'utilisateur ne sert à rien.
-  const needsScroll = photosFromPage().length < 2;
-  (needsScroll ? loadLazyImages() : Promise.resolve())
-    .then(() => fetch("/api/v2/items/" + itemId, {
-      credentials: "include", headers: { Accept: "application/json" },
-    }))
+  // Pas de défilement : dérouler la page chargeait les vignettes des annonces
+  // SUGGÉRÉES en bas de fiche, qui se retrouvaient reprises comme si elles
+  // appartenaient à l'annonce.
+  fetch("/api/v2/items/" + itemId, { credentials: "include", headers: { Accept: "application/json" } })
     .then((response) => (response.ok ? response.json() : null))
     .catch(() => null)
     .then((payload) => {
