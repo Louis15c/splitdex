@@ -170,7 +170,7 @@ LOADER_TEMPLATE = """\
 """
 
 
-CORE_VERSION = "2.4"
+CORE_VERSION = "3.0"
 
 CORE_TEMPLATE = """\
 (function () {
@@ -386,6 +386,33 @@ CORE_TEMPLATE = """\
     const panelIsOpen = makePanelOpenDetector(4);
     if (!(await openDropdown(trigger, panelIsOpen, "Catégorie"))) {
       return false;
+    }
+
+    // Raccourci : si le sélecteur propose une recherche, on y tape directement
+    // la catégorie finale. L'arborescence du formulaire de vente ne reprend pas
+    // les mêmes libellés que le fil d'ariane d'une annonce (le premier niveau
+    // manque souvent), ce qui faisait échouer la navigation pas à pas.
+    if (customPath && customPath.length) {
+      const leafLabel = customPath[customPath.length - 1];
+      const search = document.querySelector(
+        'input[type="search"], input[placeholder*="recherch" i], input[placeholder*="catégorie" i]'
+      );
+      if (search && search !== trigger) {
+        setNativeValue(search, leafLabel);
+        const hit = await waitFor(() => findCellByText(leafPattern, null), 2500)
+                 || await waitFor(() => findCellByText(loosePatterns[0], null), 1200);
+        if (hit) {
+          debugLog("catégorie : trouvée par recherche «", leafLabel, "»");
+          simulateClick(hit);
+          await sleep(500);
+          const done = Array.from(document.querySelectorAll("button")).find(
+            (b) => b.offsetParent !== null && /^(fait|terminé|valider)$/i.test((b.textContent || "").trim())
+          );
+          if (done) simulateClick(done);
+          if (await waitFor(() => trigger.value.trim().length > 0, 2500)) return true;
+        }
+        debugLog("catégorie : recherche infructueuse pour «", leafLabel, "», navigation pas à pas");
+      }
     }
 
     const alreadyClicked = new Set();
@@ -723,6 +750,27 @@ CAPTURE_TEMPLATE = '''(function () {
     return "";
   }
 
+  // La galerie ne charge ses images qu'à l'approche du regard : sans un
+  // parcours préalable de la page, une seule photo figure dans le HTML au
+  // moment de la reprise. On déroule donc la page, puis on revient en haut.
+  function loadLazyImages() {
+    return new Promise((resolve) => {
+      const start = window.scrollY;
+      let position = 0;
+      const step = () => {
+        window.scrollTo(0, position);
+        position += window.innerHeight * 0.8;
+        if (position < document.body.scrollHeight) {
+          setTimeout(step, 220);
+        } else {
+          window.scrollTo(0, start);
+          setTimeout(resolve, 600);  // laisse les dernières images arriver
+        }
+      };
+      step();
+    });
+  }
+
   // Les URLs du CDN Vinted sont SIGNÉES ("?s=...") et la signature vaut pour UNE
   // taille précise : ni la retirer, ni réécrire le segment de taille — le
   // téléchargement serait refusé. On prend donc l'URL la plus grande telle
@@ -803,7 +851,10 @@ CAPTURE_TEMPLATE = '''(function () {
 
   // L'API de Vinted donne les données les plus propres quand elle répond ; sinon
   // on lit la page telle qu'elle est affichée, qui reflète toujours l'annonce.
-  fetch("/api/v2/items/" + itemId, { credentials: "include", headers: { Accept: "application/json" } })
+  loadLazyImages()
+    .then(() => fetch("/api/v2/items/" + itemId, {
+      credentials: "include", headers: { Accept: "application/json" },
+    }))
     .then((response) => (response.ok ? response.json() : null))
     .catch(() => null)
     .then((payload) => {
