@@ -170,7 +170,7 @@ LOADER_TEMPLATE = """\
 """
 
 
-CORE_VERSION = "3.4"
+CORE_VERSION = "3.5"
 
 CORE_TEMPLATE = """\
 (function () {
@@ -364,6 +364,57 @@ CORE_TEMPLATE = """\
     /^divertissement$/i,
   ];
 
+  // ── Sélecteurs déroulants : outils communs ────────────────────────────
+  // Le panneau (catégorie, marque) a son propre champ de recherche, et ses
+  // entrées ne sont fiables QUE dans son conteneur : chercher dans toute la
+  // page fait retenir n'importe quel élément d'interface.
+
+  function findPanelSearchField(trigger, hints) {
+    for (const holder of document.querySelectorAll(hints)) {
+      const field = holder.matches("input, textarea") ? holder : holder.querySelector("input, textarea");
+      if (field && field !== trigger && field.offsetParent !== null) return field;
+    }
+    return Array.from(document.querySelectorAll('input[type="text"], input[type="search"], input:not([type]), textarea')).find((f) => {
+      const tag = (f.getAttribute("data-testid") || "") + " " + f.id + " " + f.name;
+      return f !== trigger && f.offsetParent !== null && !/search-text|title|titre|price|prix|descri/i.test(tag);
+    }) || null;
+  }
+
+  // Remonte du champ jusqu'au premier conteneur groupant plusieurs entrées.
+  function panelOf(node) {
+    let box = node.parentElement;
+    while (box && box !== document.body) {
+      if (box.querySelectorAll(".web_ui__Cell__cell").length >= 2) return box;
+      box = box.parentElement;
+    }
+    return null;
+  }
+
+  // Éléments d'interface qui ne sont jamais une proposition de liste.
+  const PANEL_NOISE = /(déposer les fichiers|ajoute des photos|vendeur professionnel|code de la consommation|^prix$|^articles$|^femmes$|^hommes$|^enfants$|^maison$|^électronique$|^divertissement$|^animaux$)/i;
+
+  function panelProposals(panel) {
+    return Array.from((panel || document).querySelectorAll(".web_ui__Cell__cell")).filter((cell) => {
+      const label = (cell.textContent || "").trim();
+      return cell.offsetParent !== null && label && label.length < 90 && !PANEL_NOISE.test(label);
+    });
+  }
+
+  // Retient l'entrée qui reprend le plus de mots du libellé cherché. Aucun mot
+  // commun = la liste n'est pas encore à jour : mieux vaut attendre que cliquer.
+  function bestProposal(panel, wanted) {
+    const words = wanted.toLowerCase().split(/\s+/).filter((w) => w.length > 2);
+    const score = (cell) => {
+      const label = (cell.textContent || "").trim().toLowerCase();
+      if (label === wanted.toLowerCase()) return 99;
+      return words.filter((w) => label.includes(w)).length;
+    };
+    const proposals = panelProposals(panel);
+    if (!proposals.length) return null;
+    proposals.sort((a, b) => score(b) - score(a));
+    return score(proposals[0]) > 0 ? proposals[0] : null;
+  }
+
   async function selectCategory(customPath) {
     // Republication : on suit la catégorie de l'annonce d'origine. Sans elle on
     // retombe sur l'arborescence des cartes Pokémon, ce qui rangeait n'importe
@@ -395,23 +446,8 @@ CORE_TEMPLATE = """\
     // catégorie et prendre la première proposition contourne le problème.
     if (customPath && customPath.length) {
       const leafLabel = customPath[customPath.length - 1];
-      // Recherche structurelle du champ. Viser un attribut exact a échoué :
-      // « catalog-search-input » peut désigner l'ENVELOPPE et non le champ
-      // lui-même, auquel cas aucun sélecteur d'input ne le trouve. On part donc
-      // du porteur de l'identifiant et on descend jusqu'au champ saisissable.
-      const findSearchField = () => {
-        for (const holder of document.querySelectorAll('[data-testid*="catalog"], [id*="catalog"], [name*="catalog"]')) {
-          const field = holder.matches("input, textarea") ? holder : holder.querySelector("input, textarea");
-          if (field && field !== trigger && field.offsetParent !== null) return field;
-        }
-        // Dernier recours : le seul champ saisissable visible qui ne soit ni le
-        // déclencheur, ni la recherche du site, ni un champ de l'annonce.
-        return Array.from(document.querySelectorAll('input[type="text"], input[type="search"], input:not([type]), textarea')).find((f) => {
-          const tag = (f.getAttribute("data-testid") || "") + " " + f.id + " " + f.name;
-          return f !== trigger && f.offsetParent !== null && !/search-text|title|titre|price|prix|descri/i.test(tag);
-        }) || null;
-      };
-      const search = await waitFor(findSearchField, 2500);
+      const search = await waitFor(
+        () => findPanelSearchField(trigger, '[data-testid*="catalog"], [id*="catalog"], [name*="catalog"]'), 2500);
       if (!search) {
         debugLog("catégorie : aucun champ saisissable - champs présents :",
           Array.from(document.querySelectorAll("input, textarea")).map((f) =>
@@ -423,43 +459,11 @@ CORE_TEMPLATE = """\
         search.focus();
         setNativeValue(search, leafLabel);
         await sleep(900);
-
-        // Les résultats se cherchent DANS le panneau du sélecteur. Balayer toute
-        // la page faisait retenir la zone de dépôt des photos, qui n'a rien à
-        // voir avec la catégorie. On remonte donc depuis le champ jusqu'au
-        // premier conteneur qui regroupe plusieurs entrées : c'est la liste.
-        const panelOf = (node) => {
-          let box = node.parentElement;
-          while (box && box !== document.body) {
-            if (box.querySelectorAll(".web_ui__Cell__cell").length >= 2) return box;
-            box = box.parentElement;
-          }
-          return null;
-        };
         const panel = panelOf(search);
-        // Éléments de l'interface qui ne sont pas des catégories proposées.
-        const NOISE = /(déposer les fichiers|ajoute des photos|vendeur professionnel|code de la consommation|^prix$|^articles$|^femmes$|^hommes$|^enfants$|^maison$|^électronique$|^divertissement$|^animaux$)/i;
-        // Une proposition d'autant plus probable qu'elle reprend les mots tapés.
-        const words = leafLabel.toLowerCase().split(/\s+/).filter((w) => w.length > 2);
-        const score = (label) => words.filter((w) => label.toLowerCase().includes(w)).length;
-
-        const result = await waitFor(() => {
-          const scope = panel || document;
-          const proposals = Array.from(scope.querySelectorAll(".web_ui__Cell__cell")).filter((cell) => {
-            const label = (cell.textContent || "").trim();
-            return cell.offsetParent !== null && label && label.length < 90 && !NOISE.test(label);
-          });
-          if (!proposals.length) return null;
-          proposals.sort((a, b) => score((b.textContent || "").trim()) - score((a.textContent || "").trim()));
-          // Aucun mot en commun : la liste n'est probablement pas encore à jour.
-          return score((proposals[0].textContent || "").trim()) > 0 ? proposals[0] : null;
-        }, 3500);
-
+        const result = await waitFor(() => bestProposal(panel, leafLabel), 3500);
         if (!result) {
           debugLog("catégorie : propositions du panneau :",
-            Array.from((panel || document).querySelectorAll(".web_ui__Cell__cell"))
-              .filter((c) => c.offsetParent !== null)
-              .slice(0, 12).map((c) => (c.textContent || "").trim()).join(" | "));
+            panelProposals(panel).slice(0, 12).map((c) => (c.textContent || "").trim()).join(" | "));
         }
 
         if (result) {
@@ -555,24 +559,70 @@ CORE_TEMPLATE = """\
       return false;
     }
 
-    if (trigger.tagName === "INPUT") {
-      setNativeValue(trigger, wanted);
-    } else {
-      const search = document.querySelector('input[placeholder*="marque" i], input[type="search"]');
-      if (search) setNativeValue(search, wanted);
-    }
+    // Même écueil que la catégorie : le champ de saisie du panneau n'est pas le
+    // déclencheur, et une correspondance EXACTE échoue dès que l'entrée porte un
+    // libellé enrichi ("Funko" listé "Funko Pop", nombre d'articles...).
+    const search = findPanelSearchField(trigger, '[data-testid*="brand"], [id*="brand"], [name*="brand"]') || trigger;
+    search.focus();
+    setNativeValue(search, wanted);
+    await sleep(700);
 
-    const brandPattern = new RegExp("^" + escapeRegExp(wanted) + "$", "i");
-    const cell = await waitFor(() => findCellByText(brandPattern, null), 4000);
+    const panel = panelOf(search);
+    const cell = await waitFor(() => bestProposal(panel, wanted), 4000);
     if (!cell) {
-      debugLog("marque : entrée « " + wanted + " » introuvable - entrées visibles :",
-        visibleCells().slice(0, 10).map((c) => (c.textContent || "").trim()).join(" | "));
+      debugLog("marque : « " + wanted + " » introuvable - propositions du panneau :",
+        panelProposals(panel).slice(0, 12).map((c) => (c.textContent || "").trim()).join(" | "));
       return false;
     }
     debugLog("marque : clic sur «", (cell.textContent || "").trim(), "»");
     simulateClick(cell);
     await sleep(300);
     return true;
+  }
+
+  // ── Photos ────────────────────────────────────────────────────────────
+  // En republication, les photos recadrées attendent déjà sur Splitdex : on les
+  // récupère en binaire et on les dépose dans le champ d'envoi du formulaire,
+  // exactement comme un glisser-déposer. Rien n'est publié pour autant.
+
+  function fetchBinary(url) {
+    return new Promise((resolve) => {
+      GM_xmlhttpRequest({
+        method: "GET", url: url, responseType: "arraybuffer",
+        onload: (response) => resolve(response.status === 200 ? response.response : null),
+        onerror: () => resolve(null),
+      });
+    });
+  }
+
+  async function addPhotos(listing) {
+    const names = listing.photos || [];
+    if (!listing.id || !names.length) return 0;
+
+    const input = await waitFor(
+      () => Array.from(document.querySelectorAll('input[type="file"]')).find((f) => !f.disabled), 5000);
+    if (!input) {
+      debugLog("photos : champ d'envoi introuvable");
+      return 0;
+    }
+
+    const files = [];
+    for (const name of names.slice(0, 20)) {
+      const buffer = await fetchBinary(
+        SPLITDEX_ORIGIN + "/api/republish/" + listing.id + "/photos/" + name);
+      if (buffer) files.push(new File([buffer], name, { type: "image/jpeg" }));
+      else debugLog("photos :", name, "non récupérée depuis Splitdex");
+    }
+    if (!files.length) return 0;
+
+    // DataTransfer : seule façon de renseigner input.files par programme.
+    const transfer = new DataTransfer();
+    files.forEach((file) => transfer.items.add(file));
+    input.files = transfer.files;
+    input.dispatchEvent(new Event("change", { bubbles: true }));
+    debugLog("photos :", files.length, "déposée(s) dans le formulaire");
+    await sleep(1500);
+    return files.length;
   }
 
   // Vocabulaire Splitdex → libellés exacts des états Vinted. "Neuf" côté
@@ -658,7 +708,16 @@ CORE_TEMPLATE = """\
     const filled = [];
     const missing = [];
 
-    // Titre et description d'abord (indépendants du reste)...
+    // Les photos d'abord : la zone de dépôt est présente dès le chargement, et
+    // le téléversement se poursuit pendant que le reste se remplit.
+    let addedPhotos = 0;
+    if (isRepublish) {
+      addedPhotos = await addPhotos(listing);
+      if (addedPhotos) filled.push(addedPhotos + " photo(s)");
+      else if ((listing.photos || []).length) missing.push("photos");
+    }
+
+    // Titre et description ensuite (indépendants du reste)...
     const titleField = findField(FIELD_SELECTORS.title);
     if (titleField) {
       setNativeValue(titleField, listing.title);
@@ -719,7 +778,9 @@ CORE_TEMPLATE = """\
     if (missing.length) {
       message += "\\nÀ finir à la main : " + missing.join(", ") + ".";
     }
-    message += "\\nReste : photos, puis relecture avant d'ajouter.";
+    message += addedPhotos
+      ? "\\nRelis, vérifie les photos, puis clique toi-même sur Ajouter."
+      : "\\nReste : photos, puis relecture avant d'ajouter.";
     showToast(message, missing.length > 0);
   }
 
