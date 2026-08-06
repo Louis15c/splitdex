@@ -132,6 +132,27 @@ def list_captured():
     return sorted(entries, key=lambda entry: entry.get("captured_at", ""), reverse=True)
 
 
+@router.get("/latest")
+def latest_captured():
+    """Dernière annonce reprise, au format attendu par le remplissage de
+    formulaire — permet de republier sans repasser par « Envoyer vers Vinted »."""
+    entries = list_captured()
+    if not entries:
+        raise HTTPException(
+            status_code=404,
+            detail="Aucune annonce reprise — clique d'abord sur « Reprendre dans Splitdex » sur une de tes annonces.",
+        )
+    entry = entries[0]
+    return {
+        "title": entry.get("title", ""),
+        "description": entry.get("description", ""),
+        "price": entry.get("price"),
+        "condition": entry.get("condition"),
+        "photos": entry.get("photos", []),
+        "id": entry.get("id"),
+    }
+
+
 @router.get("/{entry_id}/photos/{filename}")
 def get_photo(entry_id: str, filename: str):
     directory = _entry_dir(entry_id)

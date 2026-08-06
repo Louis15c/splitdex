@@ -26,16 +26,22 @@ cache) :
   jamais retoucher l'installation Tampermonkey.
 """
 
+import json
+
 from fastapi import APIRouter, HTTPException, Request
 from fastapi.responses import PlainTextResponse
 from pydantic import BaseModel
 
+from app.core.config import DATA_DIR
+
 router = APIRouter(tags=["vinted"])
 
-# Dernière fiche "envoyée vers Vinted" depuis l'UI. En mémoire uniquement :
-# c'est un tampon d'échange entre deux onglets du même utilisateur, pas une
-# donnée à conserver (perdue au redémarrage du serveur, sans conséquence).
-_staged_listing: dict | None = None
+# Dernière fiche "envoyée vers Vinted" depuis l'UI : un tampon d'échange entre
+# deux onglets du même utilisateur. Écrit sur disque et non gardé en mémoire —
+# le serveur redémarre (mise à jour, relance) entre le moment où l'on prépare la
+# fiche et celui où l'on remplit le formulaire, et la perdre à ce moment-là
+# donnait un "Aucune fiche préparée" incompréhensible côté utilisateur.
+STAGED_PATH = DATA_DIR / "vinted_staged.json"
 
 
 class StagedListing(BaseModel):
@@ -47,19 +53,24 @@ class StagedListing(BaseModel):
 
 @router.post("/api/vinted/staged")
 async def stage_listing(listing: StagedListing):
-    global _staged_listing
-    _staged_listing = listing.model_dump()
+    STAGED_PATH.parent.mkdir(parents=True, exist_ok=True)
+    STAGED_PATH.write_text(
+        json.dumps(listing.model_dump(), ensure_ascii=False), encoding="utf-8"
+    )
     return {"status": "ok"}
 
 
 @router.get("/api/vinted/staged")
 async def get_staged_listing():
-    if _staged_listing is None:
+    if not STAGED_PATH.exists():
         raise HTTPException(
             status_code=404,
             detail="Aucune fiche préparée — clique d'abord sur « Envoyer vers Vinted » dans Splitdex.",
         )
-    return _staged_listing
+    try:
+        return json.loads(STAGED_PATH.read_text(encoding="utf-8"))
+    except Exception:
+        raise HTTPException(status_code=404, detail="Fiche préparée illisible — relance l'envoi.")
 
 
 LOADER_TEMPLATE = """\
@@ -98,23 +109,15 @@ LOADER_TEMPLATE = """\
   // annonce existante pour la republier. Le second n'a de sens que sur la fiche
   // d'une annonce déjà publiée.
   const isNewListing = /\/items\/new/.test(location.pathname);
-  const CORE_URL = isNewListing ? "/vinted-autofill-core.js" : "/vinted-capture-core.js";
 
-  const button = document.createElement("button");
-  button.textContent = isNewListing ? "📋 Remplir depuis Splitdex" : "♻️ Reprendre dans Splitdex";
-  Object.assign(button.style, {
-    position: "fixed", bottom: "20px", right: "20px", zIndex: 99999,
-    background: "#0f766e", color: "white", border: "none",
-    borderRadius: "999px", padding: "12px 18px", fontSize: "14px",
-    fontWeight: "600", cursor: "pointer",
-    boxShadow: "0 4px 12px rgba(0,0,0,0.25)",
-  });
-  button.addEventListener("click", () => {
+  // La logique est toujours téléchargée fraîche : `SPLITDEX_SOURCE` indique au
+  // remplissage d'où tirer la fiche (carte scannée ou annonce reprise).
+  function runCore(coreUrl, source, button) {
     button.disabled = true;
+    window.SPLITDEX_SOURCE = source;
     GM_xmlhttpRequest({
       method: "GET",
-      // cache-buster : toujours la dernière version de la logique
-      url: SPLITDEX_ORIGIN + CORE_URL + "?ts=" + Date.now(),
+      url: SPLITDEX_ORIGIN + coreUrl + "?ts=" + Date.now(),  // cache-buster
       onload: function (response) {
         button.disabled = false;
         if (response.status !== 200) {
@@ -135,8 +138,34 @@ LOADER_TEMPLATE = """\
         showError("Splitdex injoignable (" + SPLITDEX_ORIGIN + ") — serveur lancé ? même réseau ?");
       },
     });
-  });
-  document.body.append(button);
+  }
+
+  function addButton(label, offset, background, onClick) {
+    const button = document.createElement("button");
+    button.textContent = label;
+    Object.assign(button.style, {
+      position: "fixed", bottom: offset + "px", right: "20px", zIndex: 99999,
+      background: background, color: "white", border: "none",
+      borderRadius: "999px", padding: "12px 18px", fontSize: "14px",
+      fontWeight: "600", cursor: "pointer",
+      boxShadow: "0 4px 12px rgba(0,0,0,0.25)",
+    });
+    button.addEventListener("click", () => onClick(button));
+    document.body.append(button);
+    return button;
+  }
+
+  if (isNewListing) {
+    // Deux sources possibles pour un formulaire vierge : une carte scannée dans
+    // Splitdex, ou une annonce reprise pour être republiée.
+    addButton("📋 Remplir depuis Splitdex", 20, "#0f766e", (b) =>
+      runCore("/vinted-autofill-core.js", "staged", b));
+    addButton("♻️ Remplir (republication)", 72, "#7c3aed", (b) =>
+      runCore("/vinted-autofill-core.js", "republish", b));
+  } else {
+    addButton("♻️ Reprendre dans Splitdex", 20, "#7c3aed", (b) =>
+      runCore("/vinted-capture-core.js", "capture", b));
+  }
 })();
 """
 
@@ -565,9 +594,16 @@ CORE_TEMPLATE = """\
     showToast(message, missing.length > 0);
   }
 
+  // Source de la fiche, choisie par le bouton cliqué (voir le lanceur) :
+  // "staged" = carte scannée envoyée depuis Splitdex, "republish" = dernière
+  // annonce reprise pour être republiée.
+  const SOURCE_PATH = (typeof window !== "undefined" && window.SPLITDEX_SOURCE === "republish")
+    ? "/api/republish/latest"
+    : "/api/vinted/staged";
+
   GM_xmlhttpRequest({
     method: "GET",
-    url: SPLITDEX_ORIGIN + "/api/vinted/staged",
+    url: SPLITDEX_ORIGIN + SOURCE_PATH,
     onload: function (response) {
       if (response.status === 200) {
         fillForm(JSON.parse(response.responseText));
@@ -635,17 +671,34 @@ CAPTURE_TEMPLATE = '''(function () {
       .replace(/\\/thumb\\//, "/f800/");
   }
 
+  // On fouille le HTML BRUT plutôt que les seules balises <img> affichées : la
+  // galerie charge ses images à la demande, et n'attendre que celles rendues
+  // obligeait à faire défiler l'annonce avant de la reprendre. Les URLs des
+  // autres photos sont pourtant déjà dans la page (données embarquées, srcset,
+  // attributs de préchargement).
   function photosFromPage() {
     const seen = new Set();
     const urls = [];
+    const add = (raw) => {
+      if (!raw) return;
+      const url = fullSize(raw.split("?")[0]);
+      // Les vignettes minuscules (avatars, pictos) portent leur taille dans
+      // l'URL : on ne garde que les formats de photo d'annonce.
+      if (/\/\d{1,3}x\d{1,3}\//.test(url) && !/\/f800\//.test(url)) return;
+      if (!seen.has(url)) { seen.add(url); urls.push(url); }
+    };
+
+    const html = document.documentElement.innerHTML;
+    const pattern = /https:\/\/[\w.-]*vinted\.net\/[^"'\\\s<>)]+\.(?:jpe?g|png|webp)/gi;
+    let match;
+    while ((match = pattern.exec(html)) !== null) add(match[0]);
+
+    // Complément : ce qui est réellement rendu, si une URL n'existe que là.
     for (const img of document.querySelectorAll("img")) {
-      const raw = img.currentSrc || img.src || "";
-      if (!/vinted\\.net/.test(raw)) continue;
-      // Écarte avatars et pictos : une photo d'annonce est grande à l'affichage.
       const width = img.naturalWidth || img.width || 0;
       if (width && width < 200) continue;
-      const url = fullSize(raw.split("?")[0]);
-      if (!seen.has(url)) { seen.add(url); urls.push(url); }
+      const raw = img.currentSrc || img.src || "";
+      if (/vinted\.net/.test(raw)) add(raw);
     }
     return urls;
   }
