@@ -593,8 +593,7 @@ CORE_TEMPLATE = """\
 # propres données, sur son propre compte. Rien n'est publié ni modifié côté
 # Vinted — la fiche est simplement copiée dans Splitdex pour être republiée à la
 # main ensuite.
-CAPTURE_TEMPLATE = """\
-(function () {
+CAPTURE_TEMPLATE = '''(function () {
   "use strict";
 
   const SPLITDEX_ORIGIN = "__SPLITDEX_ORIGIN__";
@@ -610,7 +609,7 @@ CAPTURE_TEMPLATE = """\
       boxShadow: "0 4px 12px rgba(0,0,0,0.25)",
     });
     document.body.append(box);
-    setTimeout(() => box.remove(), 9000);
+    setTimeout(() => box.remove(), 11000);
   }
 
   const itemId = (location.pathname.match(/\\/items\\/(\\d+)/) || [])[1];
@@ -622,62 +621,113 @@ CAPTURE_TEMPLATE = """\
   function textOf(selectors) {
     for (const selector of selectors) {
       const node = document.querySelector(selector);
-      if (node && node.textContent.trim()) return node.textContent.trim();
+      if (node && (node.textContent || "").trim()) return node.textContent.trim();
     }
     return "";
   }
 
-  // L'API de Vinted répond dans la session courante (compte de l'utilisateur) et
-  // donne des données propres ; en cas d'échec on retombe sur le DOM affiché.
-  fetch("/api/v2/items/" + itemId, { credentials: "include" })
+  // Les photos affichées sont servies par le CDN de Vinted. Leur URL porte un
+  // segment de taille ("/310x430/", "/f800/") : on demande la plus grande
+  // version disponible plutôt que la vignette de la galerie.
+  function fullSize(url) {
+    return url
+      .replace(/\\/\\d+x\\d+\\//, "/f800/")
+      .replace(/\\/thumb\\//, "/f800/");
+  }
+
+  function photosFromPage() {
+    const seen = new Set();
+    const urls = [];
+    for (const img of document.querySelectorAll("img")) {
+      const raw = img.currentSrc || img.src || "";
+      if (!/vinted\\.net/.test(raw)) continue;
+      // Écarte avatars et pictos : une photo d'annonce est grande à l'affichage.
+      const width = img.naturalWidth || img.width || 0;
+      if (width && width < 200) continue;
+      const url = fullSize(raw.split("?")[0]);
+      if (!seen.has(url)) { seen.add(url); urls.push(url); }
+    }
+    return urls;
+  }
+
+  function priceFromPage() {
+    const text = textOf([
+      '[data-testid="item-price"]',
+      '[class*="item-price"]',
+      '[itemprop="price"]',
+    ]);
+    const match = (text || "").replace(/\\s/g, "").match(/(\\d+[.,]?\\d*)/);
+    return match ? parseFloat(match[1].replace(",", ".")) : null;
+  }
+
+  function send(listing, foundInPage) {
+    if (!listing.title) {
+      toast("Splitdex — impossible de lire cette annonce (page inattendue).", true);
+      return;
+    }
+    GM_xmlhttpRequest({
+      method: "POST",
+      url: SPLITDEX_ORIGIN + "/api/republish",
+      headers: { "Content-Type": "application/json" },
+      data: JSON.stringify(listing),
+      onload: function (response) {
+        if (response.status !== 200) {
+          toast("Splitdex — reprise refusée (HTTP " + response.status + ")", true);
+          return;
+        }
+        let saved = 0;
+        try { saved = (JSON.parse(response.responseText).photos || []).length; } catch (e) {}
+        const lost = listing.photo_urls.length - saved;
+        toast(
+          "Annonce reprise dans Splitdex.\\n" +
+          saved + " photo(s) recadrée(s)" +
+          (lost > 0 ? " — " + lost + " non téléchargeable(s)" : "") + ".\\n" +
+          (listing.photo_urls.length === 0
+            ? "Aucune photo trouvée sur la page : fais défiler la galerie puis réessaie.\\n"
+            : "") +
+          "Ouvre l'onglet Vinted de Splitdex pour la republier.",
+          listing.photo_urls.length === 0
+        );
+        console.log("[Splitdex] reprise", { source: foundInPage, listing: listing });
+      },
+      onerror: function () {
+        toast("Splitdex injoignable (" + SPLITDEX_ORIGIN + ")", true);
+      },
+    });
+  }
+
+  // L'API de Vinted donne les données les plus propres quand elle répond ; sinon
+  // on lit la page telle qu'elle est affichée, qui reflète toujours l'annonce.
+  fetch("/api/v2/items/" + itemId, { credentials: "include", headers: { Accept: "application/json" } })
     .then((response) => (response.ok ? response.json() : null))
     .catch(() => null)
     .then((payload) => {
       const item = (payload && (payload.item || payload)) || {};
-      const photos = (item.photos || [])
+      const apiPhotos = (item.photos || [])
         .map((photo) => photo.full_size_url || photo.url || photo.image_url)
         .filter(Boolean);
+      const pagePhotos = photosFromPage();
+      const photos = apiPhotos.length ? apiPhotos : pagePhotos;
 
-      const listing = {
+      const price = (item.price && item.price.amount)
+        ? parseFloat(item.price.amount)
+        : (typeof item.price === "number" ? item.price : priceFromPage());
+
+      send({
         title: item.title || textOf(["h1", '[data-testid="item-page-title"]']),
-        description: item.description || textOf(['[itemprop="description"]', '[data-testid*="description"]']),
-        price: item.price && item.price.amount ? parseFloat(item.price.amount)
-             : (item.price ? parseFloat(item.price) : null),
-        condition: item.status || null,
-        photo_urls: photos,
+        description: item.description || textOf([
+          '[itemprop="description"]',
+          '[data-testid*="description"]',
+          '[class*="description"]',
+        ]),
+        price: price,
+        condition: item.status || textOf(['[data-testid*="status"]', '[itemprop="itemCondition"]']) || null,
+        photo_urls: photos.slice(0, 20),
         source_url: location.href,
-      };
-
-      if (!listing.title) {
-        toast("Splitdex — impossible de lire cette annonce (page inattendue).", true);
-        return;
-      }
-
-      GM_xmlhttpRequest({
-        method: "POST",
-        url: SPLITDEX_ORIGIN + "/api/republish",
-        headers: { "Content-Type": "application/json" },
-        data: JSON.stringify(listing),
-        onload: function (response) {
-          if (response.status !== 200) {
-            toast("Splitdex — reprise refusée (HTTP " + response.status + ")", true);
-            return;
-          }
-          let saved = 0;
-          try { saved = (JSON.parse(response.responseText).photos || []).length; } catch (e) {}
-          toast(
-            "Annonce reprise dans Splitdex.\\n" + saved + " photo(s) recadrée(s).\\n" +
-            "Ouvre l'onglet Vinted de Splitdex pour la republier.",
-            false
-          );
-        },
-        onerror: function () {
-          toast("Splitdex injoignable (" + SPLITDEX_ORIGIN + ")", true);
-        },
-      });
+      }, apiPhotos.length ? "api" : "page");
     });
 })();
-"""
+'''
 
 
 NO_STORE_HEADERS = {"Cache-Control": "no-store, max-age=0"}

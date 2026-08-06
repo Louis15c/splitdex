@@ -69,8 +69,11 @@ def _crop_borders(image: np.ndarray, ratio: float) -> np.ndarray:
 
 
 def _download_photo(url: str) -> bytes | None:
+    # Referer : les CDN d'images refusent souvent une requête qui ne vient pas
+    # du site, ce qui donnerait un téléchargement vide sans erreur explicite.
+    headers = {**_UA, "Referer": "https://www.vinted.fr/", "Accept": "image/*,*/*"}
     try:
-        request = urllib.request.Request(url, headers=_UA)
+        request = urllib.request.Request(url, headers=headers)
         with urllib.request.urlopen(request, timeout=PHOTO_TIMEOUT) as response:
             return response.read()
     except Exception:
