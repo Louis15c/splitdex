@@ -77,20 +77,32 @@ LOADER_TEMPLATE = """\
 // ==UserScript==
 // @name         Splitdex → Vinted (remplissage du formulaire)
 // @namespace    splitdex
-// @version      3.0
+// @version      4.0
 // @description  Deux boutons, selon la page : "Remplir depuis Splitdex" sur la page Vendre, et "Reprendre dans Splitdex" sur une de vos annonces (pour la republier sans tout ressaisir). La logique est téléchargée fraîche depuis le serveur Splitdex à chaque clic. Aucune publication automatique.
 // @match        https://www.vinted.fr/items/new*
 // @match        https://www.vinted.fr/*/items/new*
 // @match        https://www.vinted.fr/items/*
 // @match        https://www.vinted.fr/*/items/*
 // @grant        GM_xmlhttpRequest
+// @grant        GM_setValue
+// @grant        GM_getValue
 // @connect      __SPLITDEX_HOSTNAME__
+// @connect      vinted.net
 // ==/UserScript==
 
 (function () {
   "use strict";
 
   const SPLITDEX_ORIGIN = "__SPLITDEX_ORIGIN__";
+
+  // Copie de la logique figée à l'installation. Elle sert quand le serveur
+  // Splitdex ne tourne pas : la republication se passe alors entièrement du
+  // serveur (fiche et photos rangées dans le stockage de Tampermonkey).
+  // Quand le serveur répond, sa version — toujours plus fraîche — l'emporte.
+  const EMBEDDED = {
+    "/vinted-autofill-core.js": __EMBEDDED_AUTOFILL__,
+    "/vinted-capture-core.js": __EMBEDDED_CAPTURE__,
+  };
 
   function showError(message) {
     const toast = document.createElement("div");
@@ -121,23 +133,35 @@ LOADER_TEMPLATE = """\
       onload: function (response) {
         button.disabled = false;
         if (response.status !== 200) {
-          showError("Splitdex — impossible de charger la logique (HTTP " + response.status + ")");
+          runLogic(EMBEDDED[coreUrl], "embarquée (serveur : HTTP " + response.status + ")");
           return;
         }
-        try {
-          // Exécuté dans le bac à sable du userscript : GM_xmlhttpRequest
-          // reste accessible à la logique téléchargée.
-          eval(response.responseText);
-        } catch (e) {
-          showError("Splitdex — erreur dans la logique : " + e.message);
-          console.error("[Splitdex]", e);
-        }
+        runLogic(response.responseText, "serveur");
       },
       onerror: function () {
         button.disabled = false;
-        showError("Splitdex injoignable (" + SPLITDEX_ORIGIN + ") — serveur lancé ? même réseau ?");
+        // Serveur absent : on continue avec la copie embarquée. C'est le mode
+        // hors-ligne — seule la republication y fonctionne, une carte scannée
+        // venant forcément de Splitdex.
+        runLogic(EMBEDDED[coreUrl], "embarquée (serveur injoignable)");
       },
     });
+  }
+
+  // Exécutée dans le bac à sable du userscript : GM_xmlhttpRequest, GM_setValue
+  // et GM_getValue restent accessibles à la logique, d'où qu'elle vienne.
+  function runLogic(source, provenance) {
+    if (!source) {
+      showError("Splitdex — aucune logique disponible (ni serveur, ni copie embarquée).");
+      return;
+    }
+    console.log("[Splitdex] logique " + provenance);
+    try {
+      eval(source);
+    } catch (e) {
+      showError("Splitdex — erreur dans la logique : " + e.message);
+      console.error("[Splitdex]", e);
+    }
   }
 
   function addButton(label, offset, background, onClick) {
@@ -170,7 +194,7 @@ LOADER_TEMPLATE = """\
 """
 
 
-CORE_VERSION = "3.5"
+CORE_VERSION = "3.6"
 
 CORE_TEMPLATE = """\
 (function () {
@@ -595,9 +619,23 @@ CORE_TEMPLATE = """\
     });
   }
 
+  // Photos rangées par le navigateur (mode hors-ligne) : déjà recadrées, en
+  // data URL. Les reconvertir en fichier est le seul moyen de les déposer dans
+  // un champ d'envoi.
+  function fileFromDataUrl(dataUrl, name) {
+    const comma = dataUrl.indexOf(",");
+    const header = dataUrl.slice(0, comma);
+    const binary = atob(dataUrl.slice(comma + 1));
+    const bytes = new Uint8Array(binary.length);
+    for (let i = 0; i < binary.length; i++) bytes[i] = binary.charCodeAt(i);
+    const type = (header.split(":")[1] || "image/jpeg").split(";")[0];
+    return new File([bytes], name, { type: type });
+  }
+
   async function addPhotos(listing) {
     const names = listing.photos || [];
-    if (!listing.id || !names.length) return 0;
+    const local = listing.photo_data || [];
+    if (!local.length && (!listing.id || !names.length)) return 0;
 
     const input = await waitFor(
       () => Array.from(document.querySelectorAll('input[type="file"]')).find((f) => !f.disabled), 5000);
@@ -607,12 +645,19 @@ CORE_TEMPLATE = """\
     }
 
     const files = [];
-    for (const name of names.slice(0, 20)) {
+    if (local.length) {
+      local.slice(0, 20).forEach((dataUrl, index) => {
+        try { files.push(fileFromDataUrl(dataUrl, "photo_" + index + ".jpg")); }
+        catch (e) { debugLog("photos : entrée locale", index, "illisible"); }
+      });
+    }
+    for (const name of files.length ? [] : names.slice(0, 20)) {
       const buffer = await fetchBinary(
         SPLITDEX_ORIGIN + "/api/republish/" + listing.id + "/photos/" + name);
       if (buffer) files.push(new File([buffer], name, { type: "image/jpeg" }));
       else debugLog("photos :", name, "non récupérée depuis Splitdex");
     }
+
     if (!files.length) return 0;
 
     // DataTransfer : seule façon de renseigner input.files par programme.
@@ -784,6 +829,23 @@ CORE_TEMPLATE = """\
     showToast(message, missing.length > 0);
   }
 
+  // Fiche gardée par le navigateur lors d'une reprise faite serveur éteint.
+  // Ne vaut que pour la republication : une carte scannée vient forcément de
+  // Splitdex, qui doit donc tourner.
+  function useLocalListing() {
+    if (window.SPLITDEX_SOURCE !== "republish") return false;
+    let record = null;
+    try {
+      record = JSON.parse((typeof GM_getValue === "function" && GM_getValue("splitdex_republish", "")) || "null");
+    } catch (e) {
+      record = null;
+    }
+    if (!record || !record.title) return false;
+    debugLog("fiche lue dans le navigateur (reprise du", (record.captured_at || "?").slice(0, 16) + ")");
+    fillForm(record);
+    return true;
+  }
+
   // Source de la fiche, choisie par le bouton cliqué (voir le lanceur) :
   // "staged" = carte scannée envoyée depuis Splitdex, "republish" = dernière
   // annonce reprise pour être republiée.
@@ -797,16 +859,20 @@ CORE_TEMPLATE = """\
     onload: function (response) {
       if (response.status === 200) {
         fillForm(JSON.parse(response.responseText));
-      } else {
-        let detail = "Erreur " + response.status;
-        try {
-          detail = JSON.parse(response.responseText).detail || detail;
-        } catch (e) {}
-        showToast("Splitdex — " + detail, true);
+        return;
       }
+      let detail = "Erreur " + response.status;
+      try {
+        detail = JSON.parse(response.responseText).detail || detail;
+      } catch (e) {}
+      // Le serveur répond mais n'a rien : une reprise gardée localement peut
+      // très bien être plus récente que la sienne.
+      if (!useLocalListing()) showToast("Splitdex — " + detail, true);
     },
     onerror: function () {
-      showToast("Splitdex injoignable (" + SPLITDEX_ORIGIN + ")", true);
+      if (!useLocalListing()) {
+        showToast("Splitdex injoignable (" + SPLITDEX_ORIGIN + ") et rien en réserve.", true);
+      }
     },
   });
 })();
@@ -867,6 +933,65 @@ CAPTURE_TEMPLATE = '''(function () {
     if (!value || value.length > 40) return null;
     if (/menu|marque|brand|sélectionne/i.test(value)) return null;
     return value;
+  }
+
+  // ── Repli sans serveur ────────────────────────────────────────────────
+  // Splitdex éteint : le navigateur sait tout faire seul. Il télécharge les
+  // photos, les recadre dans un canvas (mêmes 2 % que le serveur) et range le
+  // tout dans le stockage de Tampermonkey, qui survit au changement de page.
+  const LOCAL_KEY = "splitdex_republish";
+  const CROP_RATIO = 0.02;
+
+  function fetchBinary(url) {
+    return new Promise((resolve) => {
+      GM_xmlhttpRequest({
+        method: "GET", url: url, responseType: "arraybuffer",
+        headers: { Referer: "https://www.vinted.fr/", Accept: "image/*,*/*" },
+        onload: (r) => resolve(r.status === 200 ? r.response : null),
+        onerror: () => resolve(null),
+      });
+    });
+  }
+
+  // Rogne la même fraction sur les quatre côtés : un recadrage, pas une
+  // déformation. Le blob est de même origine, le canvas n'est donc pas
+  // "teinté" et toDataURL reste autorisé.
+  function cropToDataUrl(buffer) {
+    return new Promise((resolve) => {
+      const url = URL.createObjectURL(new Blob([buffer]));
+      const image = new Image();
+      image.onload = () => {
+        URL.revokeObjectURL(url);
+        const mx = Math.round(image.width * CROP_RATIO);
+        const my = Math.round(image.height * CROP_RATIO);
+        const width = image.width - 2 * mx;
+        const height = image.height - 2 * my;
+        if (width < 50 || height < 50) { resolve(null); return; }
+        const canvas = document.createElement("canvas");
+        canvas.width = width;
+        canvas.height = height;
+        canvas.getContext("2d").drawImage(image, mx, my, width, height, 0, 0, width, height);
+        resolve(canvas.toDataURL("image/jpeg", 0.95));
+      };
+      image.onerror = () => { URL.revokeObjectURL(url); resolve(null); };
+      image.src = url;
+    });
+  }
+
+  async function storeLocally(listing) {
+    const photos = [];
+    for (const url of (listing.photo_urls || []).slice(0, 20)) {
+      const buffer = await fetchBinary(url);
+      if (!buffer) continue;
+      const dataUrl = await cropToDataUrl(buffer);
+      if (dataUrl) photos.push(dataUrl);
+    }
+    const record = Object.assign({}, listing, {
+      photo_data: photos,
+      captured_at: new Date().toISOString(),
+    });
+    GM_setValue(LOCAL_KEY, JSON.stringify(record));
+    return photos.length;
   }
 
   function textOf(selectors) {
@@ -950,7 +1075,16 @@ CAPTURE_TEMPLATE = '''(function () {
         console.log("[Splitdex] reprise", { source: foundInPage, listing: listing });
       },
       onerror: function () {
-        toast("Splitdex injoignable (" + SPLITDEX_ORIGIN + ")", true);
+        // Serveur éteint : on garde tout dans le navigateur. La republication
+        // fonctionnera quand même, photos comprises.
+        storeLocally(listing).then((count) => {
+          toast(
+            "Splitdex éteint — annonce gardée dans le navigateur.\\n" +
+            count + " photo(s) recadrée(s) sur " + (listing.photo_urls || []).length + ".\\n" +
+            "Va sur Vendre et clique « Remplir (republication) ».",
+            count === 0
+          );
+        });
       },
     });
   }
@@ -1006,6 +1140,16 @@ CAPTURE_TEMPLATE = '''(function () {
 NO_STORE_HEADERS = {"Cache-Control": "no-store, max-age=0"}
 
 
+def _render_core(origin: str) -> str:
+    return CORE_TEMPLATE.replace("__SPLITDEX_ORIGIN__", origin).replace(
+        "__CORE_VERSION__", CORE_VERSION
+    )
+
+
+def _render_capture(origin: str) -> str:
+    return CAPTURE_TEMPLATE.replace("__SPLITDEX_ORIGIN__", origin)
+
+
 def _origin_and_hostname(request: Request) -> tuple[str, str]:
     host = request.headers.get("host", "localhost:8000")
     return f"http://{host}", host.split(":")[0]
@@ -1020,6 +1164,11 @@ async def userscript_loader(request: Request):
     script = LOADER_TEMPLATE.replace("__SPLITDEX_ORIGIN__", origin).replace(
         "__SPLITDEX_HOSTNAME__", hostname
     )
+    # Les deux logiques sont embarquées telles quelles : sans elles, rien ne
+    # fonctionnerait serveur éteint. json.dumps produit un littéral JS valide,
+    # quels que soient les guillemets et accents qu'elles contiennent.
+    script = script.replace("__EMBEDDED_AUTOFILL__", json.dumps(_render_core(origin)))
+    script = script.replace("__EMBEDDED_CAPTURE__", json.dumps(_render_capture(origin)))
     return PlainTextResponse(script, media_type="text/javascript; charset=utf-8", headers=NO_STORE_HEADERS)
 
 
@@ -1027,10 +1176,7 @@ async def userscript_loader(request: Request):
 async def userscript_core(request: Request):
     """Logique de remplissage, rechargée fraîche à chaque clic du bouton."""
     origin, _ = _origin_and_hostname(request)
-    script = CORE_TEMPLATE.replace("__SPLITDEX_ORIGIN__", origin).replace(
-        "__CORE_VERSION__", CORE_VERSION
-    )
-    return PlainTextResponse(script, media_type="text/javascript; charset=utf-8", headers=NO_STORE_HEADERS)
+    return PlainTextResponse(_render_core(origin), media_type="text/javascript; charset=utf-8", headers=NO_STORE_HEADERS)
 
 
 
@@ -1039,7 +1185,7 @@ async def userscript_capture(request: Request):
     """Logique de reprise d'une annonce existante, rechargée à chaque clic."""
     origin, _ = _origin_and_hostname(request)
     return PlainTextResponse(
-        CAPTURE_TEMPLATE.replace("__SPLITDEX_ORIGIN__", origin),
+        _render_capture(origin),
         media_type="text/javascript; charset=utf-8",
         headers=NO_STORE_HEADERS,
     )
