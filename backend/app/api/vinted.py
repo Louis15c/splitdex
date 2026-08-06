@@ -373,6 +373,9 @@ CORE_TEMPLATE = """\
           (label) => new RegExp("^" + escapeRegExp(label) + "$", "i"))
       : CATEGORY_STEP_PATTERNS;
     const leafPattern = stepPatterns[0];
+    const loosePatterns = (customPath && customPath.length)
+      ? customPath.slice().reverse().map((label) => new RegExp(escapeRegExp(label), "i"))
+      : [];
     const trigger = findField(FIELD_SELECTORS.category);
     if (!trigger) {
       debugLog("catégorie : champ déclencheur introuvable");
@@ -389,7 +392,14 @@ CORE_TEMPLATE = """\
     let leafClicked = false;
     for (let step = 0; step < 6; step++) {
       const cell = await waitFor(() => {
+        // Correspondance exacte d'abord. Puis, en repli, correspondance
+        // partielle : le fil d'ariane d'une annonce ne reprend pas toujours
+        // mot pour mot les libellés de l'arborescence du formulaire de vente.
         for (const pattern of stepPatterns) {
+          const found = findCellByText(pattern, alreadyClicked);
+          if (found) return found;
+        }
+        for (const pattern of loosePatterns) {
           const found = findCellByText(pattern, alreadyClicked);
           if (found) return found;
         }
@@ -680,6 +690,31 @@ CAPTURE_TEMPLATE = '''(function () {
     return;
   }
 
+  // Le texte relevé colle le libellé à la valeur ("ÉtatTrès bon état") : on en
+  // extrait l'état réel, tel que Vinted le nomme.
+  const CONDITIONS = [
+    "Neuf avec étiquette", "Neuf sans étiquette",
+    "Très bon état", "Bon état", "Satisfaisant",
+  ];
+  function cleanCondition(text) {
+    if (!text) return null;
+    for (const condition of CONDITIONS) {
+      if (text.indexOf(condition) !== -1) return condition;
+    }
+    return null;
+  }
+
+  // Les sélecteurs de marque attrapent parfois un libellé d'interface plutôt
+  // que la marque ("Menu relatif à la marque") : mieux vaut ne rien renvoyer
+  // que remplir le formulaire avec une valeur inexistante.
+  function cleanBrand(text) {
+    if (!text) return null;
+    const value = text.trim();
+    if (!value || value.length > 40) return null;
+    if (/menu|marque|brand|sélectionne/i.test(value)) return null;
+    return value;
+  }
+
   function textOf(selectors) {
     for (const selector of selectors) {
       const node = document.querySelector(selector);
@@ -698,7 +733,7 @@ CAPTURE_TEMPLATE = '''(function () {
   // portrait (310x430, 70x100...).
   function photosFromPage() {
     const html = document.documentElement.innerHTML;
-    const pattern = /https:\/\/[\w.-]*vinted\.net\/[^"'\\\s<>)]+/gi;
+    const pattern = /https:\/\/[\w.-]*vinted\.net\/[^"'\\s<>)]+/gi;
     const photos = new Map();
     let match;
     while ((match = pattern.exec(html)) !== null) {
@@ -794,15 +829,15 @@ CAPTURE_TEMPLATE = '''(function () {
       send({
         title: item.title || textOf(["h1", '[data-testid="item-page-title"]']),
         category_path: (item.category_path || breadcrumb).slice(-4),
-        brand: (item.brand_dto && item.brand_dto.title) || item.brand
-               || textOf(['[data-testid*="brand"]', '[itemprop="brand"]']) || null,
+        brand: cleanBrand((item.brand_dto && item.brand_dto.title) || item.brand
+               || textOf(['[itemprop="brand"]', '[data-testid*="brand"] a'])),
         description: item.description || textOf([
           '[itemprop="description"]',
           '[data-testid*="description"]',
           '[class*="description"]',
         ]),
         price: price,
-        condition: item.status || textOf(['[data-testid*="status"]', '[itemprop="itemCondition"]']) || null,
+        condition: cleanCondition(item.status || textOf(['[data-testid*="status"]', '[itemprop="itemCondition"]'])),
         photo_urls: photos.slice(0, 20),
         source_url: location.href,
       }, apiPhotos.length ? "api" : "page");

@@ -91,13 +91,17 @@ def capture_listing(listing: CapturedListing):
     directory = REPUBLISH_DIR / entry_id
     directory.mkdir(parents=True, exist_ok=True)
 
-    saved = []
+    saved, failures = [], []
     for index, url in enumerate(listing.photo_urls[:MAX_PHOTOS]):
         data = _download_photo(url)
         if data is None:
+            # On garde l'URL fautive : sans elle, un échec de téléchargement est
+            # indiscernable d'une absence de photo, et impossible à diagnostiquer.
+            failures.append({"url": url[:300], "reason": "téléchargement refusé"})
             continue
         image = cv2.imdecode(np.frombuffer(data, np.uint8), cv2.IMREAD_COLOR)
         if image is None:
+            failures.append({"url": url[:300], "reason": f"format illisible ({len(data)} o)"})
             continue
         filename = f"photo_{index:02d}.jpg"
         cv2.imwrite(
@@ -118,6 +122,7 @@ def capture_listing(listing: CapturedListing):
         "brand": listing.brand,
         "photos": saved,
         "photos_requested": len(listing.photo_urls),
+        "photo_failures": failures[:5],
         "captured_at": datetime.now(timezone.utc).isoformat(),
     }
     (directory / "meta.json").write_text(json.dumps(meta, ensure_ascii=False), encoding="utf-8")
