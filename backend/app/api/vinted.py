@@ -170,7 +170,7 @@ LOADER_TEMPLATE = """\
 """
 
 
-CORE_VERSION = "3.0"
+CORE_VERSION = "3.1"
 
 CORE_TEMPLATE = """\
 (function () {
@@ -394,9 +394,11 @@ CORE_TEMPLATE = """\
     // manque souvent), ce qui faisait échouer la navigation pas à pas.
     if (customPath && customPath.length) {
       const leafLabel = customPath[customPath.length - 1];
-      const search = document.querySelector(
-        'input[type="search"], input[placeholder*="recherch" i], input[placeholder*="catégorie" i]'
-      );
+      // Cible exacte : le sélecteur de catégorie a SON propre champ de
+      // recherche. Un sélecteur générique attrapait la recherche globale du
+      // site (`search-text--input`), où la saisie n'avait évidemment aucun effet.
+      const search = document.querySelector('[data-testid="catalog-search-input"]')
+        || document.querySelector('input[placeholder*="catégorie" i]');
       if (search && search !== trigger) {
         setNativeValue(search, leafLabel);
         const hit = await waitFor(() => findCellByText(leafPattern, null), 2500)
@@ -851,7 +853,11 @@ CAPTURE_TEMPLATE = '''(function () {
 
   // L'API de Vinted donne les données les plus propres quand elle répond ; sinon
   // on lit la page telle qu'elle est affichée, qui reflète toujours l'annonce.
-  loadLazyImages()
+  // Le défilement n'a lieu QUE si la page ne livre pas déjà plusieurs photos :
+  // sur une annonce à une seule photo, ou dont la galerie est déjà chargée,
+  // dérouler toute la page sous les yeux de l'utilisateur ne sert à rien.
+  const needsScroll = photosFromPage().length < 2;
+  (needsScroll ? loadLazyImages() : Promise.resolve())
     .then(() => fetch("/api/v2/items/" + itemId, {
       credentials: "include", headers: { Accept: "application/json" },
     }))
