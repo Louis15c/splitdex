@@ -61,7 +61,33 @@ def _text_rows(gray: np.ndarray, min_height: int = 6) -> list[tuple[int, int]]:
     return rows
 
 
-def _focused_ocr(image: np.ndarray) -> np.ndarray:
+# Deux dosages de renforcement. Ce n'est pas de la redondance : sur un numéro
+# haut d'une vingtaine de pixels, le résultat bascule de l'un à l'autre. Mesuré
+# sur une carte ère EX (Rayquaza 16/110, source de 162x26 px) — 1,7/-0,7 rend
+# « 164110 », la barre oblique lue comme un 4, tandis que 1,8/-0,8 rend
+# « 16/110 ». Élire l'un des deux reviendrait à régler un paramètre sur un seul
+# échantillon.
+#
+# L'ORDRE compte, et coûte cher si on se trompe : tenter les deux dosages sur
+# CHAQUE morceau consomme le budget deux fois plus vite, donc explore moitié
+# moins de morceaux. Mesuré sur les 612 cartes de l'historique — 77 lectures
+# dont 32 discordantes en 1,88s, contre 78 lectures dont 29 discordantes en
+# 1,09s avec un seul dosage : approfondir coûtait 73% de temps pour aucune
+# lecture de plus et davantage d'erreurs. On balaie donc TOUS les morceaux au
+# premier dosage avant de recommencer au second.
+_FOCUS_SHARPENING = (1.7, -0.7)
+# Dosage de secours, tenté UNIQUEMENT sur un morceau qui a livré une suite de
+# chiffres sans séparateur — signature d'un numéro présent dont la barre
+# oblique a été perdue (mesuré : « 164110 » pour 16/110, le « / » lu comme un
+# 4). Rattraper précisément ce cas coûte un appel de plus sur les seuls
+# morceaux concernés, là où un second balayage complet doublait le temps de
+# TOUTES les cartes pour aucune lecture de plus sur 612 (77 lectures en 1,88s
+# contre 78 en 1,09s).
+_FOCUS_SHARPENING_RESCUE = (1.8, -0.8)
+_GLUED_DIGITS = re.compile(r"\d{4,7}")
+
+
+def _focused_ocr(image: np.ndarray, sharpening: tuple[float, float] = _FOCUS_SHARPENING) -> np.ndarray:
     """Agrandit franchement et renforce les contours : le numéro est minuscule."""
     height, width = image.shape[:2]
     scaled = cv2.resize(
@@ -70,12 +96,24 @@ def _focused_ocr(image: np.ndarray) -> np.ndarray:
         interpolation=cv2.INTER_CUBIC,
     )
     gray = scaled if scaled.ndim == 2 else cv2.cvtColor(scaled, cv2.COLOR_BGR2GRAY)
-    return cv2.addWeighted(gray, 1.7, cv2.GaussianBlur(gray, (0, 0), 3), -0.7, 0)
+    alpha, beta = sharpening
+    return cv2.addWeighted(gray, alpha, cv2.GaussianBlur(gray, (0, 0), 3), beta, 0)
 
 
-# Au-delà, on renonce : les lectures réussies aboutissent en 4 appels au plus
-# (mesuré sur photo 4K), tandis qu'un échec pouvait en enchaîner 34 et coûter
-# 3,5s. Ce plafond ramène le pire cas sous la seconde sans rien perdre.
+
+
+
+# Budget d'appels OCR PAR FENÊTRE, et non pour l'ensemble. Un budget global
+# était consommé en entier par la première fenêtre explorée : sur les cartes
+# ère EX, dont le numéro est en bas à DROITE, la fenêtre de gauche (vide, mais
+# riche en texte : code de série, copyright) épuisait les 10 appels avant que
+# la droite ne soit seulement tentée. Le numéro était lisible et lu — « 2/113 »
+# sortait correctement au premier essai de la bonne fenêtre — mais on n'y
+# arrivait jamais. Deux cartes identifiées dans la mauvaise extension pour
+# cette seule raison.
+#
+# Les lectures réussies aboutissent en 4 appels au plus dans leur fenêtre ; le
+# plafond borne donc chaque fenêtre sans jamais affamer la suivante.
 _MAX_OCR_ATTEMPTS = 10
 
 
@@ -111,7 +149,6 @@ def detect_card_number_focused(card_bgr: np.ndarray) -> tuple[str, str] | None:
     if card_bgr is None or card_bgr.size == 0:
         return None
     height, width = card_bgr.shape[:2]
-    attempts = 0
     for y0, y1, x0, x1 in _NUMBER_WINDOWS:
         strip = card_bgr[int(height * y0) : int(height * y1), int(width * x0) : int(width * x1)]
         if strip.size == 0 or strip.shape[1] < 8:
@@ -119,15 +156,15 @@ def detect_card_number_focused(card_bgr: np.ndarray) -> tuple[str, str] | None:
 
         # `--psm 11` (texte épars) sur la bande entière : le moins cher, et il
         # suffit quand le numéro est bien détaché de son fond.
-        attempts += 1
         found = _first_plausible(run_tesseract(_focused_ocr(strip), psm=11))
         if found:
             return found
 
-        gray = cv2.cvtColor(strip, cv2.COLOR_BGR2GRAY)
-        for row_start, row_end in _text_rows(gray):
+        rows = _text_rows(cv2.cvtColor(strip, cv2.COLOR_BGR2GRAY))
+        attempts = 0  # budget propre à cette fenêtre
+        for row_start, row_end in rows:
             if attempts >= _MAX_OCR_ATTEMPTS:
-                return None
+                break
             padding = max(1, (row_end - row_start) // 6)
             line = strip[
                 max(0, row_start - padding) : min(strip.shape[0], row_end + padding), :
@@ -145,14 +182,25 @@ def detect_card_number_focused(card_bgr: np.ndarray) -> tuple[str, str] | None:
             line_width = line.shape[1]
             for offset in (0.0, 0.25, 0.5):
                 if attempts >= _MAX_OCR_ATTEMPTS:
-                    return None
+                    break
                 piece = line[:, int(line_width * offset) : int(line_width * min(1.0, offset + 0.5))]
                 if piece.shape[1] < 10:
                     continue
                 attempts += 1
-                found = _first_plausible(run_tesseract(_focused_ocr(piece), psm=7))
+                text = run_tesseract(_focused_ocr(piece), psm=7)
+                found = _first_plausible(text)
                 if found:
                     return found
+                # Chiffres collés sans séparateur : le numéro est là, seule la
+                # barre oblique a sauté. Un seul dosage de secours sur CE
+                # morceau suffit à la retrouver.
+                if _GLUED_DIGITS.search(text or ""):
+                    attempts += 1
+                    found = _first_plausible(
+                        run_tesseract(_focused_ocr(piece, _FOCUS_SHARPENING_RESCUE), psm=7)
+                    )
+                    if found:
+                        return found
     return None
 
 
