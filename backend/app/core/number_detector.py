@@ -82,20 +82,28 @@ _MAX_OCR_ATTEMPTS = 10
 def detect_card_number_focused(card_bgr: np.ndarray) -> tuple[str, str] | None:
     """Passe OCR CIBLÉE sur la zone du numéro, en dernier recours.
 
-    Le numéro est imprimé en tout petit, souvent en clair sur un fond doré ou
-    holographique : les passes OCR globales (`ocr_text`) le noient dans le
-    reste de la carte et ne le rendent quasiment jamais.
+    Ce ne sont ni la netteté ni la taille qui sont en cause. Sur une photo 4K,
+    le numéro est en chiffres NOIRS (5 de gris) sur un aplat uniforme (71-80),
+    sans illustration derrière — et la carte entière poussée à x4, chiffres
+    hauts de 188px, rend toujours "<2" et "G".
 
-    Zoomer sur la bande du bas ne suffit pas : cette bande mêle des symboles,
-    le numéro en clair sur le fond de la carte et le bord coloré portant la
-    mention de copyright. Tesseract échoue alors à la SEGMENTER et ne rend que
-    la ligne la plus contrastée — le numéro reste illisible bien qu'il soit
-    parfaitement net (constaté sur une photo 4K : "068/198" lu sans effort une
-    fois isolé, jamais dans la bande entière).
+    La cause est le VOISINAGE. Le numéro est encadré de pictogrammes (symbole
+    d'extension, lettre encadrée, étoile de rareté). Tesseract regroupe les
+    glyphes en mots d'après leur espacement, agglomère ces pictogrammes avec
+    les chiffres, et son modèle ne produit rien de sensé pour ce mélange. Il
+    voit pourtant bien une zone de texte au bon endroit : il la rend "y", "Q"
+    ou "7,6" selon le mode. La ligne de copyright juste en dessous passe très
+    bien, elle, car aucun pictogramme ne la jouxte.
 
-    On découpe donc la bande en lignes de texte avant de lire, et on n'offre à
-    Tesseract qu'une ligne à la fois. Mesuré : 2 numéros lus sur 9 auparavant,
-    6 sur 9 ensuite, pour ~0,3s par carte quand la lecture aboutit.
+    Démonstration, même ligne et même agrandissement :
+        avec les pictogrammes  -> "cS?"
+        sans les pictogrammes  -> "068/798 *"
+
+    D'où la méthode : isoler les lignes de texte, puis découper chaque ligne en
+    moitiés pour séparer les chiffres des pictogrammes. Le découpage horizontal
+    n'est pas un rattrapage, c'est le mécanisme même — la lecture réussie vient
+    du morceau qui laisse les symboles dehors. Mesuré : 2 numéros lus sur 9
+    auparavant, 6 sur 9 ensuite, pour ~0,3s par carte quand elle aboutit.
 
     `card_bgr` doit inclure le bord bas de la carte : les boîtes de détection
     serrent souvent trop et rognent cette ligne (voir le paramètre `margin`
