@@ -15,10 +15,8 @@ import re
 
 import cv2
 import numpy as np
-import pytesseract
-from PIL import Image
 
-from app.core.language_detector import ocr_text
+from app.core.language_detector import ocr_text, run_tesseract
 
 # "170/165", "23 / 102"... — le format quasi universel des cartes modernes.
 # Les formats promo/spéciaux (ex: "SWSH233", "TG04") ne sont pas capturés ici
@@ -40,14 +38,64 @@ _NUMBER_WINDOWS = (
 _FOCUS_WIDTH = 1200  # le numéro est minuscule : on l'agrandit franchement
 
 
+def _text_rows(gray: np.ndarray, min_height: int = 6) -> list[tuple[int, int]]:
+    """Lignes de texte de la bande, par projection horizontale du gradient.
+
+    Un fond — uni, dégradé ou holographique — présente peu de bords ; le texte
+    en présente beaucoup. Les intervalles où cette densité dépasse la moyenne
+    délimitent donc les lignes."""
+    kernel = cv2.getStructuringElement(cv2.MORPH_RECT, (3, 3))
+    profile = cv2.morphologyEx(gray, cv2.MORPH_GRADIENT, kernel).mean(axis=1)
+    threshold = profile.mean() + 0.3 * profile.std()
+    rows: list[tuple[int, int]] = []
+    start = None
+    for y, value in enumerate(profile):
+        if value > threshold and start is None:
+            start = y
+        elif value <= threshold and start is not None:
+            if y - start >= min_height:
+                rows.append((start, y))
+            start = None
+    if start is not None and len(profile) - start >= min_height:
+        rows.append((start, len(profile)))
+    return rows
+
+
+def _focused_ocr(image: np.ndarray) -> np.ndarray:
+    """Agrandit franchement et renforce les contours : le numéro est minuscule."""
+    height, width = image.shape[:2]
+    scaled = cv2.resize(
+        image,
+        (_FOCUS_WIDTH, max(1, int(_FOCUS_WIDTH * height / width))),
+        interpolation=cv2.INTER_CUBIC,
+    )
+    gray = scaled if scaled.ndim == 2 else cv2.cvtColor(scaled, cv2.COLOR_BGR2GRAY)
+    return cv2.addWeighted(gray, 1.7, cv2.GaussianBlur(gray, (0, 0), 3), -0.7, 0)
+
+
+# Au-delà, on renonce : les lectures réussies aboutissent en 4 appels au plus
+# (mesuré sur photo 4K), tandis qu'un échec pouvait en enchaîner 34 et coûter
+# 3,5s. Ce plafond ramène le pire cas sous la seconde sans rien perdre.
+_MAX_OCR_ATTEMPTS = 10
+
+
 def detect_card_number_focused(card_bgr: np.ndarray) -> tuple[str, str] | None:
     """Passe OCR CIBLÉE sur la zone du numéro, en dernier recours.
 
-    Le numéro est imprimé en tout petit, souvent en blanc sur un fond doré ou
+    Le numéro est imprimé en tout petit, souvent en clair sur un fond doré ou
     holographique : les passes OCR globales (`ocr_text`) le noient dans le
-    reste de la carte et ne le rendent quasiment jamais. Zoomer sur la bande du
-    bas suffit à le lire (mesuré : "066/217" illisible globalement, lu
-    correctement ici — la carte était identifiée sur la mauvaise extension).
+    reste de la carte et ne le rendent quasiment jamais.
+
+    Zoomer sur la bande du bas ne suffit pas : cette bande mêle des symboles,
+    le numéro en clair sur le fond de la carte et le bord coloré portant la
+    mention de copyright. Tesseract échoue alors à la SEGMENTER et ne rend que
+    la ligne la plus contrastée — le numéro reste illisible bien qu'il soit
+    parfaitement net (constaté sur une photo 4K : "068/198" lu sans effort une
+    fois isolé, jamais dans la bande entière).
+
+    On découpe donc la bande en lignes de texte avant de lire, et on n'offre à
+    Tesseract qu'une ligne à la fois. Mesuré : 2 numéros lus sur 9 auparavant,
+    6 sur 9 ensuite, pour ~0,3s par carte quand la lecture aboutit.
 
     `card_bgr` doit inclure le bord bas de la carte : les boîtes de détection
     serrent souvent trop et rognent cette ligne (voir le paramètre `margin`
@@ -55,26 +103,48 @@ def detect_card_number_focused(card_bgr: np.ndarray) -> tuple[str, str] | None:
     if card_bgr is None or card_bgr.size == 0:
         return None
     height, width = card_bgr.shape[:2]
+    attempts = 0
     for y0, y1, x0, x1 in _NUMBER_WINDOWS:
         strip = card_bgr[int(height * y0) : int(height * y1), int(width * x0) : int(width * x1)]
         if strip.size == 0 or strip.shape[1] < 8:
             continue
-        scaled = cv2.resize(
-            strip,
-            (_FOCUS_WIDTH, max(1, int(_FOCUS_WIDTH * strip.shape[0] / strip.shape[1]))),
-            interpolation=cv2.INTER_CUBIC,
-        )
-        gray = cv2.cvtColor(scaled, cv2.COLOR_BGR2GRAY)
-        gray = cv2.addWeighted(gray, 1.7, cv2.GaussianBlur(gray, (0, 0), 3), -0.7, 0)
-        try:
-            # `--psm 11` (texte épars) : la bande contient aussi l'illustrateur
-            # et le code de langue, une segmentation en bloc échoue.
-            text = pytesseract.image_to_string(Image.fromarray(gray), config="--psm 11")
-        except Exception:
-            continue
-        found = _first_plausible(text)
+
+        # `--psm 11` (texte épars) sur la bande entière : le moins cher, et il
+        # suffit quand le numéro est bien détaché de son fond.
+        attempts += 1
+        found = _first_plausible(run_tesseract(_focused_ocr(strip), psm=11))
         if found:
             return found
+
+        gray = cv2.cvtColor(strip, cv2.COLOR_BGR2GRAY)
+        for row_start, row_end in _text_rows(gray):
+            if attempts >= _MAX_OCR_ATTEMPTS:
+                return None
+            padding = max(1, (row_end - row_start) // 6)
+            line = strip[
+                max(0, row_start - padding) : min(strip.shape[0], row_end + padding), :
+            ]
+            if line.shape[0] < 6:
+                continue
+            # `--psm 7` : une ligne unique, ce qu'on vient précisément d'isoler.
+            attempts += 1
+            found = _first_plausible(run_tesseract(_focused_ocr(line), psm=7))
+            if found:
+                return found
+
+            # La ligne porte aussi symboles et illustrateur : les tiers en
+            # écartent l'essentiel sans présumer de quel côté est le numéro.
+            line_width = line.shape[1]
+            for offset in (0.0, 0.25, 0.5):
+                if attempts >= _MAX_OCR_ATTEMPTS:
+                    return None
+                piece = line[:, int(line_width * offset) : int(line_width * min(1.0, offset + 0.5))]
+                if piece.shape[1] < 10:
+                    continue
+                attempts += 1
+                found = _first_plausible(run_tesseract(_focused_ocr(piece), psm=7))
+                if found:
+                    return found
     return None
 
 
