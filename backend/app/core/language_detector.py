@@ -40,11 +40,13 @@ crops réels qui ne renvoyaient auparavant aucun texte exploitable :
 
 import os
 import re
+import shutil
+import subprocess
+import tempfile
 
 import cv2
 import numpy as np
-import pytesseract
-from PIL import Image
+import pytesseract  # sert encore à lister les langues installées
 
 # Tesseract (sous-processus) parallélise en interne via OpenMP (~4 threads).
 # Quand plusieurs crops sont OCRisés en parallèle (voir api/identify.py),
@@ -53,6 +55,11 @@ from PIL import Image
 # minutes). Un seul thread interne par instance : à peine plus lent seul,
 # et la parallélisation entre crops devient réellement efficace.
 os.environ.setdefault("OMP_THREAD_LIMIT", "1")
+
+# Binaire appelé directement (voir run_tesseract). `pytesseract` reste utilisé
+# ailleurs, notamment pour interroger les langues disponibles.
+_TESSERACT_BINARY = "tesseract"
+_TESSERACT_TIMEOUT = 60
 
 MIN_OCR_WIDTH = 1200  # Tesseract lit mal le texte fin des cartes en dessous de cette taille
 
@@ -135,6 +142,43 @@ def available_ocr_languages() -> list[str]:
 
 
 
+def run_tesseract(image: np.ndarray, lang: str | None = None, psm: int = 11) -> str:
+    """OCR d'un tableau OpenCV par le binaire Tesseract, sans passer par PIL.
+
+    `pytesseract` écrit l'image dans un PNG temporaire via PIL, et cet encodage
+    tient le GIL ~0,65s par appel — 38% du coût d'une passe. Les cartes étaient
+    donc sérialisées entre elles malgré le pool de threads : 6 workers ne
+    rendaient que 1,3x au lieu des ~6x attendus (loi d'Amdahl, plafond 2,6x).
+
+    Le BMP écrit par OpenCV est instantané (mesuré : 0,00s contre 0,65s) et
+    libère le GIL pendant l'écriture. Texte et score de vocabulaire identiques
+    à PIL, vérifiés sur les photos de référence.
+
+    L'image est passée telle quelle : OpenCV attend du BGR, ce que produisent
+    déjà nos crops — la conversion RGB qu'exigeait PIL disparaît. Les images en
+    niveaux de gris (passes renforcée et binarisée) sont acceptées aussi.
+    """
+    directory = tempfile.mkdtemp(prefix="splitdex_ocr_")
+    source = os.path.join(directory, "in.bmp")
+    target = os.path.join(directory, "out")
+    try:
+        if not cv2.imwrite(source, image):
+            return ""
+        command = [_TESSERACT_BINARY, source, target]
+        if lang:
+            command += ["-l", lang]
+        command += ["--psm", str(psm)]
+        result = subprocess.run(command, capture_output=True, timeout=_TESSERACT_TIMEOUT)
+        if result.returncode != 0:
+            return ""
+        with open(target + ".txt", encoding="utf-8", errors="ignore") as handle:
+            return handle.read()
+    except Exception:
+        return ""
+    finally:
+        shutil.rmtree(directory, ignore_errors=True)
+
+
 def upscale_for_ocr(image_bgr: np.ndarray) -> np.ndarray:
     width = image_bgr.shape[1]
     if width >= MIN_OCR_WIDTH:
@@ -198,7 +242,6 @@ def ocr_text(image_bgr: np.ndarray) -> str:
         return ""
 
     upscaled = upscale_for_ocr(image_bgr)
-    pil_image = Image.fromarray(upscaled[:, :, ::-1])  # BGR -> RGB
 
     latin_languages = [lang for lang in available if lang != "jpn"]
     passes = []
@@ -208,12 +251,11 @@ def ocr_text(image_bgr: np.ndarray) -> str:
     if latin_languages:
         latin_spec = "+".join(latin_languages)
         try:
-            passes.append(pytesseract.image_to_string(pil_image, lang=latin_spec, config="--psm 11"))
+            passes.append(run_tesseract(upscaled, lang=latin_spec, psm=11))
         except Exception:
             pass
         try:
-            sharp = Image.fromarray(_sharpened_gray(image_bgr))
-            passes.append(pytesseract.image_to_string(sharp, lang=latin_spec, config="--psm 6"))
+            passes.append(run_tesseract(_sharpened_gray(image_bgr), lang=latin_spec, psm=6))
         except Exception:
             pass
         latin_scores = _vocabulary_scores("\n".join(passes))
@@ -230,15 +272,14 @@ def ocr_text(image_bgr: np.ndarray) -> str:
         # Sauvetage : texte imprimé sur bande colorée écrasé en niveaux de gris
         # (voir _adaptive_binarized).
         try:
-            binarized = Image.fromarray(_adaptive_binarized(image_bgr))
-            passes.append(pytesseract.image_to_string(binarized, lang=latin_spec, config="--psm 6"))
+            passes.append(run_tesseract(_adaptive_binarized(image_bgr), lang=latin_spec, psm=6))
         except Exception:
             pass
 
     if "jpn" in available and not latin_decisive:
         # Sert aux indices de nom d'espèce japonais (name_detector).
         try:
-            passes.append(pytesseract.image_to_string(pil_image, lang="jpn", config="--psm 11"))
+            passes.append(run_tesseract(upscaled, lang="jpn", psm=11))
         except Exception:
             pass
 
