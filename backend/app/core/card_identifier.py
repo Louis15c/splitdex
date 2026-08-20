@@ -59,6 +59,24 @@ HASH_BITS = 64  # taille du hash perceptuel par défaut (imagehash.phash, 8x8)
 # faible signale donc précisément les cas où il ne faut PAS conclure ici.
 FAST_TOP_K = 5
 FAST_MIN_ORB = 20
+# Écart minimal entre le meilleur candidat et le suivant. Un score ORB élevé ne
+# suffit PAS : sur une réédition, l'illustration est rigoureusement la même dans
+# deux extensions, les deux candidats matchent donc aussi bien l'un que l'autre
+# et l'ORB confirme l'ILLUSTRATION, pas la carte. Constaté sur l'historique :
+# Venusaur Celebrations n°15 pris pour Venusaur Legendary Collection n°18 à
+# ORB 79, Venonat Jungle n°63 pour Venonat Base Set 2 n°97 à ORB 37. Seuls le
+# symbole d'extension et le numéro les séparent — ce que seule la voie complète
+# lit.
+#
+# Mesuré sur 612 identifications d'historique, 19 décisions fausses contre 120
+# justes : marge médiane de 6 pour les fausses (minimum 0), 52 pour les justes.
+# Le balayage des seuils donne, en erreurs restantes / décisions conservées :
+#     marge >= 5   84% / 97%      marge >= 15  16% / 88%
+#     marge >= 10  32% / 92%      marge >= 20  11% / 87%
+# À 20 on écarte 89% des erreurs en ne renonçant qu'à 13% des décisions
+# rapides, lesquelles repartent en voie complète : elles ne sont pas perdues,
+# seulement plus lentes.
+FAST_MIN_ORB_MARGIN = 20
 # Une seule orientation, contrairement à `_match_by_embedding` : une carte
 # pivotée échouera simplement la confirmation et repassera par la voie
 # complète, qui sait la retourner. Payer 4 orientations ici coûterait 2,5x
@@ -338,6 +356,11 @@ class ReferenceIndex:
 
         reranked = _rerank_by_orb(crop_image_bgr, candidates)
         if not reranked or reranked[0].orb_score < FAST_MIN_ORB:
+            return None
+        # Un second candidat qui talonne le premier signale une illustration
+        # partagée : l'image ne tranche pas, seul le texte le peut.
+        runner_up = reranked[1].orb_score if len(reranked) > 1 else 0
+        if reranked[0].orb_score - runner_up < FAST_MIN_ORB_MARGIN:
             return None
         return IdentificationResult(candidates=reranked, language=None)
 
