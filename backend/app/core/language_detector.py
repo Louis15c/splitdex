@@ -222,7 +222,7 @@ def _adaptive_binarized(image_bgr: np.ndarray) -> np.ndarray:
     )
 
 
-def ocr_text(image_bgr: np.ndarray) -> str:
+def ocr_text(image_bgr: np.ndarray, light: bool = False) -> str:
     """OCR d'un crop de carte, robuste à sa mise en page (voir docstring du
     module) : passes séparées latin/japonais plutôt qu'un seul appel avec
     toutes les langues combinées (qui se dilueraient entre elles), et DEUX
@@ -236,6 +236,14 @@ def ocr_text(image_bgr: np.ndarray) -> str:
     La passe `jpn` sert aux indices de nom d'espèce japonais (name_detector) ;
     ses hallucinations sur les cartes latines sont sans effet sur la langue
     (voir docstring du module).
+
+    `light` : s'arrêter après la première passe latine quand elle tranche déjà
+    la langue. À réserver aux cartes DÉJÀ identifiées par l'image (voie rapide
+    de `card_identifier`), car le texte rendu suffit à décider la langue mais
+    est trop pauvre pour servir d'indice de nom ou de numéro. Mesuré : ~1,9s
+    au lieu de ~4,0s, la seconde passe ne faisant que doubler un score déjà
+    acquis (11→24, 15→32) sans changer un verdict. Une carte que la première
+    passe ne tranche pas reçoit malgré tout le traitement complet.
     """
     available = available_ocr_languages()
     if not available:
@@ -254,6 +262,15 @@ def ocr_text(image_bgr: np.ndarray) -> str:
             passes.append(run_tesseract(upscaled, lang=latin_spec, psm=11))
         except Exception:
             pass
+
+        if light:
+            first_top = max(
+                (score for score, _ in _vocabulary_scores("\n".join(passes)).values()),
+                default=0,
+            )
+            if first_top >= RESCUE_MIN_TOP_SCORE:
+                return "\n".join(passes)
+
         try:
             passes.append(run_tesseract(_sharpened_gray(image_bgr), lang=latin_spec, psm=6))
         except Exception:

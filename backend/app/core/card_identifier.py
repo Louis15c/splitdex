@@ -29,7 +29,7 @@ from dataclasses import dataclass, replace
 import cv2
 import numpy as np
 
-from app.core.card_embedder import embed_rotations
+from app.core.card_embedder import embed_image, embed_rotations
 from app.core.config import DB_DIR, REFERENCE_THUMBNAILS_DIR, SQLITE_PATH
 from app.core.db import db_cursor
 from app.core.name_detector import detect_pokemon_name_hint, japanese_name_confirms
@@ -46,6 +46,24 @@ HASH_BITS = 64  # taille du hash perceptuel par défaut (imagehash.phash, 8x8)
 # fortement la présélection image pour que l'ORB ait sa chance ; c'est lui qui
 # tranche. Coût payé seulement sur la voie image (cartes dont l'OCR n'a donné
 # aucun indice fiable), pas sur les cartes classiques identifiées par nom/numéro.
+# ── Voie rapide : reconnaissance par empreinte, sans lire un caractère ────
+# C'est la méthode des applications de tri de cartes : comparer une empreinte
+# visuelle de la photo à un index pré-calculé, puis confirmer le meilleur
+# candidat. La recherche porte sur 20 000 cartes et coûte ~15 ms ; l'essentiel
+# du temps est le calcul de l'empreinte (~140 ms).
+#
+# Mesuré sur les 24 cartes des deux photos de référence : 201 ms par carte
+# contre ~3 000 ms pour la voie complète, pour 21 identifications justes sur
+# 24. Les 3 fausses ressortent avec un ORB de 2, 10 et 12 — toutes sous le
+# seuil ci-dessous, tandis que les 21 justes sont toutes au-dessus. Un ORB
+# faible signale donc précisément les cas où il ne faut PAS conclure ici.
+FAST_TOP_K = 5
+FAST_MIN_ORB = 20
+# Une seule orientation, contrairement à `_match_by_embedding` : une carte
+# pivotée échouera simplement la confirmation et repassera par la voie
+# complète, qui sait la retourner. Payer 4 orientations ici coûterait 2,5x
+# plus cher à toutes les cartes pour rattraper un cas rare.
+
 IMAGE_SHORTLIST_SIZE = 400
 # Présélection réduite pour les orientations pivotées (voir identify) : la
 # rotation est testée 3 fois, une grande liste y coûterait trop cher.
@@ -278,6 +296,50 @@ class ReferenceIndex:
                 effective_language = "Japonaise"
 
         return IdentificationResult(candidates=best[:top_k], language=effective_language)
+
+    def identify_fast(self, crop_image_bgr: np.ndarray) -> IdentificationResult | None:
+        """Identification par la seule image, sans OCR — ou `None` si le doute
+        subsiste, auquel cas l'appelant repasse par `identify()`, inchangée.
+
+        La langue d'impression n'est pas déterminée ici : elle ne se lit pas
+        sur l'illustration, seulement dans le texte. L'appelant complète.
+        """
+        matrix, ids = _load_embedding_index()
+        if matrix is None:
+            return None
+        vector = embed_image(crop_image_bgr)
+        if vector is None:
+            return None
+
+        sims = matrix @ vector
+        k = min(FAST_TOP_K, sims.shape[0])
+        top = np.argpartition(-sims, k - 1)[:k]
+        top = top[np.argsort(-sims[top])]
+
+        candidates = []
+        for i in top:
+            row = self._row_by_id.get(ids[i])
+            if row is None:
+                continue
+            candidates.append(
+                MatchCandidate(
+                    card_id=row["id"],
+                    name=row["name"],
+                    set_name=row["set_name"],
+                    number=row["number"],
+                    rarity=row["rarity"],
+                    small_image_url=row["small_image_url"],
+                    embed_sim=float(sims[i]),
+                    matched_by="empreinte",
+                )
+            )
+        if not candidates:
+            return None
+
+        reranked = _rerank_by_orb(crop_image_bgr, candidates)
+        if not reranked or reranked[0].orb_score < FAST_MIN_ORB:
+            return None
+        return IdentificationResult(candidates=reranked, language=None)
 
     def _match_by_embedding(self, crop_image_bgr: np.ndarray, top_k: int) -> list[MatchCandidate]:
         """Présélection par similarité cosinus DINOv2 (meilleure des 4

@@ -179,14 +179,29 @@ def identify_cards(photo_id: str):
             break
 
     def _identify_crop(crop):
-        """OCR unique par crop, partagé entre la détection de langue et les
-        indices numéro/nom de `identify` — l'OCR est l'étape la plus lente
-        (~3s par passe), le relancer par détecteur triplait le temps total."""
+        """Identification d'un crop, image d'abord et OCR ensuite.
+
+        L'OCR est l'étape la plus lente (~3s) : on ne le lance qu'une fois par
+        crop, et seulement pour ce qu'il apporte encore une fois la carte
+        reconnue par l'image — la langue d'impression."""
         crop_path = photo_crop_dir / crop["filename"]
         image = cv2.imread(str(crop_path))
         if image is None:
             return crop, None
         ocr_source = _ocr_source(crop, image, original_photo)
+
+        # Voie rapide : l'image seule identifie la carte dans la grande
+        # majorité des cas (~0,2s contre ~3s). L'OCR ne sert alors qu'à lire la
+        # langue d'impression, qui ne se devine pas sur l'illustration — et une
+        # seule passe y suffit, le texte n'ayant plus à servir d'indice.
+        fast = index.identify_fast(image)
+        if fast is not None:
+            text = ocr_text(ocr_source, light=True)
+            fast.language = detect_language(ocr_source, text=text)
+            return crop, fast
+
+        # Voie complète, inchangée : réservée aux cartes que l'image n'a pas
+        # tranchées (foil, gold, cadrage difficile).
         text = ocr_text(ocr_source)
         language = detect_language(ocr_source, text=text)
         number_hint = _focused_number(crop, text, original_photo)
@@ -328,6 +343,19 @@ def identify_cards_stream(photo_id: str):
         if image is None:
             return crop, None
         ocr_source = _ocr_source(crop, image, original_photo)
+
+        # Voie rapide : l'image seule identifie la carte dans la grande
+        # majorité des cas (~0,2s contre ~3s). L'OCR ne sert alors qu'à lire la
+        # langue d'impression, qui ne se devine pas sur l'illustration — et une
+        # seule passe y suffit, le texte n'ayant plus à servir d'indice.
+        fast = index.identify_fast(image)
+        if fast is not None:
+            text = ocr_text(ocr_source, light=True)
+            fast.language = detect_language(ocr_source, text=text)
+            return crop, fast
+
+        # Voie complète, inchangée : réservée aux cartes que l'image n'a pas
+        # tranchées (foil, gold, cadrage difficile).
         text = ocr_text(ocr_source)
         language = detect_language(ocr_source, text=text)
         number_hint = _focused_number(crop, text, original_photo)
