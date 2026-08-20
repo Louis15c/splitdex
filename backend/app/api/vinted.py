@@ -1062,6 +1062,33 @@ CAPTURE_TEMPLATE = '''(function () {
     return scope;
   }
 
+  // Toutes les tailles d'une même image partagent cette clé : c'est ce qui
+  // permet de la reconnaître d'une variante à l'autre.
+  function photoKey(url) {
+    const parts = url.split("?")[0].match(/\/(?:t|tc)\/([^/]+)\/(?:([^/]+)\/)?([^/]+)$/);
+    return parts ? { key: parts[1] + "/" + parts[3], size: parts[2] || "" } : null;
+  }
+
+  // L'avatar repéré dans le DOM, et non à sa taille : il ne se décline pas
+  // toujours en format carré sur la page, et passait alors pour une photo. Il
+  // est en revanche toujours dans un lien vers un profil ou dans un conteneur
+  // qui se nomme "avatar" — et sa clé vaut pour toutes ses tailles.
+  function avatarKeys() {
+    const keys = new Set();
+    const nodes = document.querySelectorAll([
+      'a[href*="/member/"] img',
+      '[class*="avatar" i] img',
+      '[data-testid*="avatar" i] img',
+      '[data-testid*="user" i] img',
+      'img[class*="avatar" i]',
+    ].join(", "));
+    for (const img of nodes) {
+      const found = photoKey(img.currentSrc || img.src || "");
+      if (found) keys.add(found.key);
+    }
+    return keys;
+  }
+
   function photosFromPage(itemId) {
     // Lire tout le document ramenait les vignettes des annonces suggérées. On
     // se limite à la galerie, en gardant la lecture du HTML brut : les URLs
@@ -1069,25 +1096,27 @@ CAPTURE_TEMPLATE = '''(function () {
     const scope = galleryScope(itemId);
     if (!scope) console.log("[Splitdex] photos : galerie non localisée, lecture de toute la page");
     const html = (scope || document.documentElement).innerHTML;
+    const excluded = avatarKeys();
     const pattern = /https:\/\/[\w.-]*vinted\.net\/[^"'\\s<>)]+/gi;
     const photos = new Map();
     let match;
     while ((match = pattern.exec(html)) !== null) {
       const url = match[0];
-      const parts = url.split("?")[0].match(/\/(?:t|tc)\/([^/]+)\/(?:([^/]+)\/)?([^/]+)$/);
-      if (!parts) continue;
-      const key = parts[1] + "/" + parts[3];
-      const size = parts[2] || "";
+      const found = photoKey(url);
+      if (!found || excluded.has(found.key)) continue;
+      const size = found.size;
       const square = /^(\d+)x(\d+)$/.exec(size);
 
-      const entry = photos.get(key) || { isAvatar: false, best: null, score: -1 };
+      const entry = photos.get(found.key) || { isAvatar: false, best: null, score: -1 };
+      // Filet de sécurité si l'avatar a échappé au repérage par le DOM.
       if (square && square[1] === square[2]) entry.isAvatar = true;
       // f800 est le plus grand format proposé ; sinon on classe par surface.
       const score = size === "f800" ? Infinity
                   : (square ? parseInt(square[1], 10) * parseInt(square[2], 10) : 0);
       if (score > entry.score) { entry.score = score; entry.best = url; }
-      photos.set(key, entry);
+      photos.set(found.key, entry);
     }
+    if (excluded.size) console.log("[Splitdex] photos : " + excluded.size + " avatar(s) écarté(s)");
     return [...photos.values()].filter((e) => !e.isAvatar && e.best).map((e) => e.best);
   }
 
