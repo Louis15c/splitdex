@@ -1,7 +1,27 @@
-"""Aide à la saisie sur Vinted — PAS un bot.
+"""Aide à la saisie sur Vinted.
 
-Vinted interdit l'automatisation de la publication ; ici rien n'est publié ni
-soumis automatiquement. Le flux est entièrement déclenché par l'utilisateur :
+ATTENTION — conformité aux CGU. Une note antérieure affirmait ici que Vinted
+n'interdisait que « l'automatisation de la publication » et que ce module était
+donc en règle. C'est FAUX : la section 6 des CGU (« vous vous engagez à ne
+pas ») est plus large et vise directement deux choses faites ici.
+
+- « utiliser tout type d'outil logiciel externe (y compris, mais sans s'y
+  limiter, des bots, des programmes de grattage...) lors de [...] l'utilisation
+  du Site » : un userscript Tampermonkey en est un, et la liste est
+  explicitement non limitative.
+- « supprimer et ajouter à nouveau plusieurs fois le même Article » : c'est
+  exactement la republication (voir `republish.py`).
+- « collecter des données disponibles sur votre écran (screen scraping) » : la
+  reprise lit le HTML de la page pour retrouver les URLs des photos, fussent-ce
+  les siennes propres.
+
+Le garde-fou ci-dessous (rien n'est publié sans un clic de l'utilisateur) reste
+vrai et limite la casse, mais il répond à une interdiction plus étroite que
+celle réellement écrite. Le risque est contractuel — suspension de compte à la
+discrétion de Vinted — et assumé en connaissance de cause par l'utilisateur.
+
+Cela posé, rien n'est publié ni soumis automatiquement. Le flux est entièrement
+déclenché par l'utilisateur :
 
 1. Dans Splitdex, bouton "Envoyer vers Vinted" sur une fiche → la fiche
    (titre, description, prix, état) est simplement mémorisée ici comme
@@ -1010,8 +1030,45 @@ CAPTURE_TEMPLATE = '''(function () {
   // Distinguer les photos de l'annonce de l'avatar du vendeur : l'avatar est
   // décliné en formats CARRÉS (310x310, 150x150...), les photos d'annonce en
   // portrait (310x430, 70x100...).
-  function photosFromPage() {
-    const html = document.documentElement.innerHTML;
+
+  // Une vignette d'annonce SUGGÉRÉE est enveloppée dans un lien vers CETTE
+  // autre annonce : c'est ce qui la distingue à coup sûr d'une photo de la
+  // galerie, laquelle ne pointe vers aucune autre fiche.
+  function linksElsewhere(node, itemId) {
+    const link = node.closest && node.closest('a[href*="/items/"]');
+    if (!link) return false;
+    const other = (link.getAttribute("href").match(/\/items\/(\d+)/) || [])[1];
+    return Boolean(other) && other !== itemId;
+  }
+
+  // Plus grand conteneur autour de la première photo de l'annonce qui n'happe
+  // encore aucune fiche voisine : dès qu'en remontant on avalerait une annonce
+  // suggérée, on s'arrête au niveau précédent.
+  function galleryScope(itemId) {
+    const own = Array.from(document.querySelectorAll("img")).find((img) =>
+      /vinted\.net/.test(img.currentSrc || img.src || "") && !linksElsewhere(img, itemId));
+    if (!own) return null;
+    let box = own.parentElement;
+    let scope = null;
+    while (box && box !== document.body) {
+      const foreign = Array.from(box.querySelectorAll('a[href*="/items/"]')).some((a) => {
+        const other = (a.getAttribute("href").match(/\/items\/(\d+)/) || [])[1];
+        return Boolean(other) && other !== itemId;
+      });
+      if (foreign) break;
+      scope = box;
+      box = box.parentElement;
+    }
+    return scope;
+  }
+
+  function photosFromPage(itemId) {
+    // Lire tout le document ramenait les vignettes des annonces suggérées. On
+    // se limite à la galerie, en gardant la lecture du HTML brut : les URLs
+    // signées et les images pas encore rendues n'existent que là.
+    const scope = galleryScope(itemId);
+    if (!scope) console.log("[Splitdex] photos : galerie non localisée, lecture de toute la page");
+    const html = (scope || document.documentElement).innerHTML;
     const pattern = /https:\/\/[\w.-]*vinted\.net\/[^"'\\s<>)]+/gi;
     const photos = new Map();
     let match;
@@ -1102,7 +1159,7 @@ CAPTURE_TEMPLATE = '''(function () {
       const apiPhotos = (item.photos || [])
         .map((photo) => photo.full_size_url || photo.url || photo.image_url)
         .filter(Boolean);
-      const pagePhotos = photosFromPage();
+      const pagePhotos = photosFromPage(itemId);
       const photos = apiPhotos.length ? apiPhotos : pagePhotos;
 
       const price = (item.price && item.price.amount)
