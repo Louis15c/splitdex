@@ -97,7 +97,7 @@ LOADER_TEMPLATE = """\
 // ==UserScript==
 // @name         Splitdex → Vinted (remplissage du formulaire)
 // @namespace    splitdex
-// @version      4.0
+// @version      4.1
 // @description  Deux boutons, selon la page : "Remplir depuis Splitdex" sur la page Vendre, et "Reprendre dans Splitdex" sur une de vos annonces (pour la republier sans tout ressaisir). La logique est téléchargée fraîche depuis le serveur Splitdex à chaque clic. Aucune publication automatique.
 // @match        https://www.vinted.fr/items/new*
 // @match        https://www.vinted.fr/*/items/new*
@@ -106,6 +106,8 @@ LOADER_TEMPLATE = """\
 // @grant        GM_xmlhttpRequest
 // @grant        GM_setValue
 // @grant        GM_getValue
+// @connect      localhost
+// @connect      127.0.0.1
 // @connect      __SPLITDEX_HOSTNAME__
 // @connect      vinted.net
 // ==/UserScript==
@@ -113,7 +115,14 @@ LOADER_TEMPLATE = """\
 (function () {
   "use strict";
 
-  const SPLITDEX_ORIGIN = "__SPLITDEX_ORIGIN__";
+  // Adresses où joindre Splitdex, essayées dans l'ordre. « localhost » vient en
+  // premier parce qu'il ne change jamais : l'adresse IP d'une machine bouge au
+  // gré du DHCP, et un script figé sur l'ancienne cesserait de fonctionner
+  // sans prévenir. L'adresse d'installation reste en second, pour le cas où le
+  // navigateur tourne sur un AUTRE appareil que le serveur.
+  const SPLITDEX_ORIGINS = __SPLITDEX_ORIGINS__;
+  // Retenue dès qu'une adresse a répondu, pour ne pas re-tester à chaque clic.
+  let SPLITDEX_ORIGIN = SPLITDEX_ORIGINS[0];
 
   // Copie de la logique figée à l'installation. Elle sert quand le serveur
   // Splitdex ne tourne pas : la republication se passe alors entièrement du
@@ -147,25 +156,38 @@ LOADER_TEMPLATE = """\
   function runCore(coreUrl, source, button) {
     button.disabled = true;
     window.SPLITDEX_SOURCE = source;
-    GM_xmlhttpRequest({
-      method: "GET",
-      url: SPLITDEX_ORIGIN + coreUrl + "?ts=" + Date.now(),  // cache-buster
-      onload: function (response) {
+
+    // Essaie chaque adresse jusqu'à ce qu'une réponde ; épuise la liste avant
+    // de se rabattre sur la copie embarquée.
+    const tryOrigin = (index) => {
+      if (index >= SPLITDEX_ORIGINS.length) {
         button.disabled = false;
-        if (response.status !== 200) {
-          runLogic(EMBEDDED[coreUrl], "embarquée (serveur : HTTP " + response.status + ")");
-          return;
-        }
-        runLogic(response.responseText, "serveur");
-      },
-      onerror: function () {
-        button.disabled = false;
-        // Serveur absent : on continue avec la copie embarquée. C'est le mode
-        // hors-ligne — seule la republication y fonctionne, une carte scannée
-        // venant forcément de Splitdex.
+        // Aucune adresse ne répond : mode hors-ligne. Seule la republication y
+        // fonctionne, une carte scannée venant forcément de Splitdex.
         runLogic(EMBEDDED[coreUrl], "embarquée (serveur injoignable)");
-      },
-    });
+        return;
+      }
+      const origin = SPLITDEX_ORIGINS[index];
+      GM_xmlhttpRequest({
+        method: "GET",
+        url: origin + coreUrl + "?ts=" + Date.now(),  // cache-buster
+        onload: function (response) {
+          if (response.status !== 200) {
+            button.disabled = false;
+            runLogic(EMBEDDED[coreUrl], "embarquée (serveur : HTTP " + response.status + ")");
+            return;
+          }
+          button.disabled = false;
+          SPLITDEX_ORIGIN = origin;
+          // La logique téléchargée hérite de l'adresse qui a répondu, au lieu
+          // de celle gravée à sa génération.
+          window.SPLITDEX_ORIGIN = origin;
+          runLogic(response.responseText, "serveur (" + origin + ")");
+        },
+        onerror: function () { tryOrigin(index + 1); },
+      });
+    };
+    tryOrigin(0);
   }
 
   // Exécutée dans le bac à sable du userscript : GM_xmlhttpRequest, GM_setValue
@@ -214,13 +236,16 @@ LOADER_TEMPLATE = """\
 """
 
 
-CORE_VERSION = "3.6"
+CORE_VERSION = "3.7"
 
 CORE_TEMPLATE = """\
 (function () {
   "use strict";
 
-  const SPLITDEX_ORIGIN = "__SPLITDEX_ORIGIN__";
+  // Adresse retenue par le lanceur (celle qui a répondu), à défaut celle
+  // gravée à la génération de ce fichier.
+  const SPLITDEX_ORIGIN =
+    (typeof window !== "undefined" && window.SPLITDEX_ORIGIN) || "__SPLITDEX_ORIGIN__";
   const CORE_VERSION = "__CORE_VERSION__";
 
   function debugLog() {
@@ -908,7 +933,10 @@ CORE_TEMPLATE = """\
 CAPTURE_TEMPLATE = '''(function () {
   "use strict";
 
-  const SPLITDEX_ORIGIN = "__SPLITDEX_ORIGIN__";
+  // Adresse retenue par le lanceur (celle qui a répondu), à défaut celle
+  // gravée à la génération de ce fichier.
+  const SPLITDEX_ORIGIN =
+    (typeof window !== "undefined" && window.SPLITDEX_ORIGIN) || "__SPLITDEX_ORIGIN__";
 
   function toast(message, isError) {
     const box = document.createElement("div");
@@ -1241,6 +1269,22 @@ def _origin_and_hostname(request: Request) -> tuple[str, str]:
     return f"http://{host}", host.split(":")[0]
 
 
+def _candidate_origins(request: Request) -> list[str]:
+    """Adresses où le userscript cherchera Splitdex, par ordre de préférence.
+
+    « localhost » d'abord : il ne change jamais, alors que l'adresse IP d'une
+    machine bouge au gré du DHCP — un script installé depuis l'IP cesserait de
+    fonctionner à la première nouvelle adresse, sans message d'erreur qui le
+    dise. L'adresse d'installation reste en second, indispensable quand le
+    navigateur tourne sur un autre appareil que le serveur."""
+    origin, _ = _origin_and_hostname(request)
+    port = request.headers.get("host", "localhost:8000").partition(":")[2] or "8000"
+    candidates = [f"http://localhost:{port}"]
+    if origin not in candidates:
+        candidates.append(origin)
+    return candidates
+
+
 @router.get("/vinted-autofill.user.js", response_class=PlainTextResponse)
 async def userscript_loader(request: Request):
     """Lanceur Tampermonkey (à installer une seule fois) — l'adresse du
@@ -1249,7 +1293,7 @@ async def userscript_loader(request: Request):
     origin, hostname = _origin_and_hostname(request)
     script = LOADER_TEMPLATE.replace("__SPLITDEX_ORIGIN__", origin).replace(
         "__SPLITDEX_HOSTNAME__", hostname
-    )
+    ).replace("__SPLITDEX_ORIGINS__", json.dumps(_candidate_origins(request)))
     # Les deux logiques sont embarquées telles quelles : sans elles, rien ne
     # fonctionnerait serveur éteint. json.dumps produit un littéral JS valide,
     # quels que soient les guillemets et accents qu'elles contiennent.
