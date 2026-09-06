@@ -44,12 +44,22 @@ Tesseract, et les dépendances Python.
 ./run.sh
 ```
 
-Le script prépare l'environnement puis démarre le serveur. Ouvrez ensuite :
+Le script prépare l'environnement puis démarre le serveur, accessible sur
+<http://localhost:8000>.
 
-- **Sur la machine qui l'exécute :** <http://localhost:8000>
-- **Depuis un autre appareil du même réseau** (ex. un Mac) :
-  `http://ADRESSE-IP-DE-LA-MACHINE:8000`
-  (trouvez l'IP avec `ipconfig getifaddr en0` sur macOS, `hostname -I` sur Linux).
+**Par défaut, seule cette machine y a accès.** Splitdex n'a aucune
+authentification et sert vos photos et vos annonces : sur un réseau partagé, il
+vaut mieux qu'il reste sur la boucle locale. Pour l'ouvrir aux autres appareils
+du réseau (consulter depuis un Mac, un téléphone…) :
+
+```bash
+SPLITDEX_HOST=0.0.0.0 ./run.sh
+```
+
+L'adresse à utiliser depuis l'autre appareil est alors
+`http://ADRESSE-IP-DE-LA-MACHINE:8000` — trouvez l'IP avec
+`ipconfig getifaddr en0` sur macOS, `hostname -I` sur Linux. `SPLITDEX_PORT`
+change le port de la même façon.
 
 **Sur une machine neuve**, après le premier lancement, chargez les données de
 référence livrées avec le dépôt (instantané, sans réseau) :

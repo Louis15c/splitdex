@@ -3,8 +3,12 @@ set -euo pipefail
 
 PROJECT_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 VENV_DIR="$PROJECT_ROOT/backend/.venv"
-HOST="0.0.0.0"
-PORT="8000"
+# Écoute sur la boucle locale par défaut : le serveur n'a aucune
+# authentification et sert vos photos et annonces. Sur un réseau partagé (wifi
+# public, colocation), « 0.0.0.0 » l'exposerait à tout le monde.
+# Pour y accéder depuis un autre appareil du réseau : SPLITDEX_HOST=0.0.0.0 ./run.sh
+HOST="${SPLITDEX_HOST:-127.0.0.1}"
+PORT="${SPLITDEX_PORT:-8000}"
 
 # Sélection d'un interpréteur Python compatible.
 # PyTorch, numpy & co. ne publient leurs binaires (« wheels ») que pour des
@@ -114,9 +118,14 @@ else
 fi
 
 echo ""
-echo "Splitdex démarre sur http://$HOST:$PORT"
-echo "Depuis un autre appareil du LAN, utilisez l'adresse IP de cette machine (voir README) :"
-echo "  http://${LOCAL_IP:-<adresse-ip-locale>}:$PORT"
+if [ "$HOST" = "0.0.0.0" ]; then
+  echo "Splitdex démarre sur http://localhost:$PORT"
+  echo "Ouvert au réseau — depuis un autre appareil du LAN :"
+  echo "  http://${LOCAL_IP:-<adresse-ip-locale>}:$PORT"
+else
+  echo "Splitdex démarre sur http://$HOST:$PORT (cette machine uniquement)"
+  echo "Pour l'ouvrir au réseau local : SPLITDEX_HOST=0.0.0.0 ./run.sh"
+fi
 echo ""
 
 cd "$PROJECT_ROOT/backend"
