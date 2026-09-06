@@ -67,6 +67,58 @@ Ajoutez `--refresh` à l'une ou l'autre pour les re-télécharger depuis TCGdex.
 
 ---
 
+## Déménager sur une autre machine
+
+Le dépôt contient le code et le modèle de détection, mais **pas** le cache de
+référence : 20 448 vignettes de cartes, leurs empreintes visuelles et la base
+SQLite pèsent 3,2 Go. Il faut les transférer à part.
+
+| | taille | dans git ? | régénérable |
+|---|---|---|---|
+| `data/models/card_detector.pt` | 6 Mo | **oui** | non (ré-entraînement) |
+| `data/db/reference_thumbnails/` | 3,17 Go | non | oui, mais très long |
+| `data/db/card_embeddings.npy` | 30 Mo | non | oui, ~45 min |
+| `data/db/splitdex.sqlite3` | 8 Mo | non | **non** — historique des scans |
+| `data/uploads/` | variable | non | non — vos photos et découpes |
+
+**1. Fabriquer l'archive** sur la machine d'origine :
+
+```bash
+cd ~/Splitdex
+tar cf ~/splitdex-data.tar data/db data/uploads data/republish
+```
+
+Pas de compression : ce sont des JPEG, `gzip` n'y gagnerait rien et coûterait
+plusieurs minutes de calcul.
+
+**2. La transférer.** Par le réseau, depuis la machine d'arrivée :
+
+```bash
+scp utilisateur@ADRESSE-IP:~/splitdex-data.tar ~/
+```
+
+Une VM libvirt en réseau NAT (`192.168.122.x`) n'est **pas** joignable depuis
+l'extérieur de son hôte — vérifiez avec `ping` avant, sinon passez par un
+disque externe ou basculez la VM en réseau *bridged*.
+
+**3. La déballer** à la racine du dépôt cloné :
+
+```bash
+cd ~/Splitdex
+tar xvf ~/splitdex-data.tar
+```
+
+Les chemins sont relatifs (`data/db/…`), l'archive se déballe donc à sa place
+sans écraser le code.
+
+**4. Vérifier** avant de lancer :
+
+```bash
+ls data/db/reference_thumbnails | wc -l   # doit afficher 20448
+```
+
+---
+
 ## Installer l'extension Vinted (remplissage automatique)
 
 Un petit script remplit le formulaire « Vendre » de Vinted à partir de vos
